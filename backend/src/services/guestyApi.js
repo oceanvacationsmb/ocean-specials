@@ -67,3 +67,31 @@ export async function getListingCalendar(listingId, from, to) {
 
   return response.data;
 }
+
+export async function createReservationQuote({
+  listingId,
+  checkInDateLocalized,
+  checkOutDateLocalized,
+  guestsCount
+}) {
+  const token = await getGuestyToken();
+
+  const response = await axios.post(
+    `${API_BASE}/reservations/quotes`,
+    {
+      listingId,
+      checkInDateLocalized,
+      checkOutDateLocalized,
+      guestsCount
+    },
+    {
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        Authorization: `Bearer ${token}`
+      }
+    }
+  );
+
+  return response.data;
+}
