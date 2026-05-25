@@ -1,21 +1,6 @@
 import { getListingCalendar } from "./guestyApi.js";
 import { findAvailableGaps } from "./gapFinder.js";
-
-const property = {
-  id: "827B",
-  title: "6BR Murrells Inlet Home",
-  listingId: "68db1a3f34efe70012fd1284",
-  bedrooms: 6,
-  sleeps: 18,
-  location: "Murrells Inlet",
-  sellingPoints: ["Private Pool", "Walk to Beach", "Sleeps 18"],
-  directBookingUrl:
-    "https://oceanvacationsmb.guestybookings.com/en/properties/68db1a3f34efe70012fd1284",
-  airbnbReviewUrl: "",
-  minNights: 2,
-  maxNights: 7,
-  scanDays: 30
-};
+import { properties } from "../data/properties.js";
 
 function addDays(date, days) {
   const copy = new Date(date);
@@ -62,7 +47,7 @@ function createFacebookText(special) {
 
   return `${special.promoType} in ${special.location}
 
-We have a ${special.nights} night opening at this ${special.bedrooms} bedroom home that sleeps up to ${special.sleeps} guests.
+We have a ${special.nights} night opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests.
 
 ${special.sellingPoints.join(" • ")}
 
@@ -78,10 +63,9 @@ Call or text: 843-222-9751
 Website: oceanvacationsmb.com`;
 }
 
-export async function generateSpecials() {
-  const today = new Date();
-  const todayYmd = toYmd(today);
-  const scanEndYmd = toYmd(addDays(today, property.scanDays));
+async function scanProperty(property, todayYmd) {
+  const scanDays = property.scanDays || 30;
+  const scanEndYmd = toYmd(addDays(new Date(todayYmd + "T00:00:00"), scanDays));
 
   const calendar = await getListingCalendar(
     property.listingId,
@@ -89,7 +73,11 @@ export async function generateSpecials() {
     scanEndYmd
   );
 
-  const gaps = findAvailableGaps(calendar, property.minNights, property.maxNights);
+  const gaps = findAvailableGaps(
+    calendar,
+    property.minNights || 2,
+    property.maxNights || 7
+  );
 
   const specials = gaps.map((gap) => {
     const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
@@ -101,7 +89,8 @@ export async function generateSpecials() {
       location: property.location,
       bedrooms: property.bedrooms,
       sleeps: property.sleeps,
-      sellingPoints: property.sellingPoints,
+      sellingPoints: property.sellingPoints || [],
+      photoUrl: property.photoUrl || "",
       checkIn: gap.checkIn,
       checkOut: gap.checkOut,
       checkInNice: niceDate(gap.checkIn),
@@ -113,7 +102,7 @@ export async function generateSpecials() {
       offerText: "Save up to 20% when booking direct",
       callToAction: "Message us for the direct booking special",
       directBookingUrl: property.directBookingUrl,
-      airbnbReviewUrl: property.airbnbReviewUrl
+      airbnbReviewUrl: property.airbnbReviewUrl || ""
     };
 
     special.facebookText = createFacebookText(special);
@@ -122,15 +111,56 @@ export async function generateSpecials() {
   });
 
   return {
+    propertyId: property.id,
+    propertyTitle: property.title,
+    scanFrom: todayYmd,
+    scanTo: scanEndYmd,
+    gapsFound: gaps.length,
+    specials
+  };
+}
+
+export async function generateSpecials(selectedPropertyIds = []) {
+  const today = new Date();
+  const todayYmd = toYmd(today);
+
+  const activeProperties = properties.filter((property) => {
+    if (!property.active) return false;
+
+    if (selectedPropertyIds.length > 0) {
+      return selectedPropertyIds.includes(property.id);
+    }
+
+    return true;
+  });
+
+  const propertyResults = [];
+  const allSpecials = [];
+
+  for (const property of activeProperties) {
+    try {
+      const result = await scanProperty(property, todayYmd);
+      propertyResults.push(result);
+      allSpecials.push(...result.specials);
+    } catch (error) {
+      propertyResults.push({
+        propertyId: property.id,
+        propertyTitle: property.title,
+        error: error.message,
+        details: error.response?.data || null,
+        specials: []
+      });
+    }
+  }
+
+  return {
     ok: true,
-    property,
     scan: {
       from: todayYmd,
-      to: scanEndYmd,
-      scanDays: property.scanDays,
-      gapsFound: gaps.length,
-      specialsCreated: specials.length
+      propertiesScanned: activeProperties.length,
+      specialsCreated: allSpecials.length
     },
-    specials
+    propertyResults,
+    specials: allSpecials
   };
 }
