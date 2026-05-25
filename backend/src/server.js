@@ -4,7 +4,8 @@ import cors from "cors";
 import {
   testGuestyConnection,
   getListingCalendar,
-  createReservationQuote
+  createReservationQuote,
+  getAllListings
 } from "./services/guestyApi.js";
 
 import { findAvailableGaps } from "./services/gapFinder.js";
@@ -35,6 +36,23 @@ app.get("/api/guesty/test", async (req, res) => {
   try {
     const result = await testGuestyConnection();
     res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
+app.get("/api/guesty/listings-test", async (req, res) => {
+  try {
+    const listings = await getAllListings();
+
+    res.json({
+      ok: true,
+      listings
+    });
   } catch (error) {
     res.status(500).json({
       ok: false,
