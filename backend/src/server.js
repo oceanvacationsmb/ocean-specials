@@ -3,6 +3,7 @@ import cors from "cors";
 import { testGuestyConnection, getListingCalendar, createReservationQuote } from "./services/guestyApi.js";
 import { findAvailableGaps } from "./services/gapFinder.js";
 import { getTotalFromQuote, applyDiscount } from "./services/priceHelper.js";
+import { generateSpecials } from "./services/specialGenerator.js";
 
 const app = express();
 
@@ -158,6 +159,19 @@ app.get("/api/specials/price-test", async (req, res) => {
         specialTotal: discount.specialTotal
       }
     });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
+app.get("/api/specials/generate", async (req, res) => {
+  try {
+    const result = await generateSpecials();
+    res.json(result);
   } catch (error) {
     res.status(500).json({
       ok: false,
