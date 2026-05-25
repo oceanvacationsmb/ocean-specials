@@ -27,22 +27,6 @@ function niceDate(ymd) {
   });
 }
 
-function getPromoType(daysUntilCheckIn) {
-  if (daysUntilCheckIn <= 7) return "Last Minute Special";
-  if (daysUntilCheckIn <= 14) return "Next Week Opening";
-  if (daysUntilCheckIn <= 30) return "Open Gap Special";
-
-  return "Direct Booking Special";
-}
-
-function getHeadline(daysUntilCheckIn) {
-  if (daysUntilCheckIn <= 7) return "LAST MINUTE SPECIAL";
-  if (daysUntilCheckIn <= 14) return "NEXT WEEK OPENING";
-  if (daysUntilCheckIn <= 30) return "OPEN GAP SPECIAL";
-
-  return "DIRECT BOOKING SPECIAL";
-}
-
 function addOrUpdateParams(url, params) {
   if (!url) return "";
 
@@ -95,7 +79,11 @@ function buildDatedLinks(property, checkIn, checkOut) {
   };
 }
 
-function createFacebookText(special) {
+function createOpeningText(special, includeDateTitle = true) {
+  const dateTitle = includeDateTitle
+    ? `${special.checkInNice} to ${special.checkOutNice}\n\n`
+    : "";
+
   const directLine = special.directDateUrl
     ? `Book direct and save up to 20%:\n${special.directDateUrl}\n`
     : "";
@@ -108,11 +96,27 @@ function createFacebookText(special) {
     ? `\nAirbnb listing with dates:\n${special.airbnbDateUrl}\n`
     : "";
 
-  return `${special.sellingPoints.join(" • ")}
+  return `${dateTitle}We have a ${special.nights} night opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests for ${special.checkInNice} to ${special.checkOutNice}
 
-We have a ${special.nights} night opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests for ${special.checkInNice} to ${special.checkOutNice}
+${directLine}${vrboLine}${airbnbLine}`;
+}
 
-${directLine}${vrboLine}${airbnbLine}
+function createPropertyPost(property, specials) {
+  const separator =
+    "\n________________________________________________________________________________\n\n";
+
+  const openingsText = specials
+    .map((special, index) => {
+      return createOpeningText(special, index !== 0);
+    })
+    .join(separator);
+
+  return `${property.sellingPoints.join(" • ")} in ${property.location}
+
+*****OPEN AVAILABILITY SPECIALS*****
+
+${openingsText}
+
 oceanvacationsmb.com`;
 }
 
@@ -136,7 +140,7 @@ async function scanProperty(property, todayYmd) {
     const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
     const datedLinks = buildDatedLinks(property, gap.checkIn, gap.checkOut);
 
-    const special = {
+    return {
       ok: true,
 
       propertyId: property.id,
@@ -157,12 +161,6 @@ async function scanProperty(property, todayYmd) {
       nights: gap.nights,
       daysUntilCheckIn,
 
-      promoType: getPromoType(daysUntilCheckIn),
-      headline: getHeadline(daysUntilCheckIn),
-
-      offerText: "Save up to 20% when booking direct",
-      callToAction: "Message us for the direct booking special",
-
       directBookingUrl: property.directBookingUrl || "",
       airbnbUrl: property.airbnbUrl || "",
       vrboUrl: property.vrboUrl || "",
@@ -174,11 +172,26 @@ async function scanProperty(property, todayYmd) {
       maxGuests: datedLinks.maxGuests,
       airbnbGuests: datedLinks.airbnbGuests
     };
-
-    special.facebookText = createFacebookText(special);
-
-    return special;
   });
+
+  const propertyPost =
+    specials.length > 0
+      ? {
+          ok: true,
+          propertyId: property.id,
+          propertyTitle: property.title,
+          listingId: property.listingId,
+          location: property.location,
+          bedrooms: property.bedrooms,
+          sleeps: property.sleeps,
+          sellingPoints: property.sellingPoints || [],
+          openingsCount: specials.length,
+          firstCheckInNice: specials[0].checkInNice,
+          lastCheckOutNice: specials[specials.length - 1].checkOutNice,
+          facebookText: createPropertyPost(property, specials),
+          specials
+        }
+      : null;
 
   return {
     propertyId: property.id,
@@ -186,7 +199,8 @@ async function scanProperty(property, todayYmd) {
     scanFrom: todayYmd,
     scanTo: scanEndYmd,
     gapsFound: gaps.length,
-    specials
+    specials,
+    propertyPost
   };
 }
 
@@ -206,6 +220,7 @@ export async function generateSpecials(selectedPropertyIds = []) {
 
   const propertyResults = [];
   const allSpecials = [];
+  const propertyPosts = [];
 
   for (const property of activeProperties) {
     try {
@@ -213,13 +228,18 @@ export async function generateSpecials(selectedPropertyIds = []) {
 
       propertyResults.push(result);
       allSpecials.push(...result.specials);
+
+      if (result.propertyPost) {
+        propertyPosts.push(result.propertyPost);
+      }
     } catch (error) {
       propertyResults.push({
         propertyId: property.id,
         propertyTitle: property.title,
         error: error.message,
         details: error.response?.data || null,
-        specials: []
+        specials: [],
+        propertyPost: null
       });
     }
   }
@@ -229,9 +249,11 @@ export async function generateSpecials(selectedPropertyIds = []) {
     scan: {
       from: todayYmd,
       propertiesScanned: activeProperties.length,
-      specialsCreated: allSpecials.length
+      specialsCreated: allSpecials.length,
+      propertyPostsCreated: propertyPosts.length
     },
     propertyResults,
-    specials: allSpecials
+    specials: allSpecials,
+    propertyPosts
   };
 }
