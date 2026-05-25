@@ -27,6 +27,10 @@ function niceDate(ymd) {
   });
 }
 
+function nightText(nights) {
+  return nights === 1 ? "1 night" : `${nights} nights`;
+}
+
 function normalizeSellingPoints(value, sleeps) {
   if (!value) {
     return [`Sleeps ${sleeps}`];
@@ -98,11 +102,7 @@ function buildDatedLinks(property, checkIn, checkOut) {
   };
 }
 
-function createOpeningText(special, includeDateTitle = true) {
-  const dateTitle = includeDateTitle
-    ? `${special.checkInNice} to ${special.checkOutNice}\n\n`
-    : "";
-
+function createExactOpeningText(special) {
   const directLine = special.directDateUrl
     ? `Book direct and save up to 20%:\n${special.directDateUrl}\n`
     : "";
@@ -115,9 +115,41 @@ function createOpeningText(special, includeDateTitle = true) {
     ? `\nAirbnb listing with dates:\n${special.airbnbDateUrl}\n`
     : "";
 
-  return `${dateTitle}We have a ${special.nights} night opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests for ${special.checkInNice} to ${special.checkOutNice}
+  return `${special.checkInNice} to ${special.checkOutNice}
+
+We have a ${nightText(special.nights)} opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests for ${special.checkInNice} to ${special.checkOutNice}
 
 ${directLine}${vrboLine}${airbnbLine}`;
+}
+
+function createLongOpeningText(special) {
+  const directLine = special.directBookingUrl
+    ? `Book direct and save up to 20%:\n${special.directBookingUrl}\n`
+    : "";
+
+  const vrboLine = special.vrboUrl
+    ? `\nVRBO listing:\n${special.vrboUrl}\n`
+    : "";
+
+  const airbnbLine = special.airbnbUrl
+    ? `\nAirbnb listing:\n${special.airbnbUrl}\n`
+    : "";
+
+  return `${special.checkInNice} to ${special.checkOutNice}
+
+Limited availability open dates between ${special.checkInNice} and ${special.checkOutNice}.
+
+This ${special.bedrooms} bedroom property sleeps up to ${special.sleeps} guests. Flexible stay options may be available inside this open window.
+
+${directLine}${vrboLine}${airbnbLine}`;
+}
+
+function createOpeningText(special) {
+  if (special.nights > 7) {
+    return createLongOpeningText(special);
+  }
+
+  return createExactOpeningText(special);
 }
 
 function createPropertyPost(property, specials) {
@@ -125,9 +157,7 @@ function createPropertyPost(property, specials) {
     "\n________________________________________________________________________________\n\n";
 
   const openingsText = specials
-    .map((special, index) => {
-      return createOpeningText(special, index !== 0);
-    })
+    .map((special) => createOpeningText(special))
     .join(separator);
 
   return `${property.sellingPoints.join(" • ")} in ${property.location}
@@ -161,8 +191,8 @@ function convertManagedProperty(property) {
     airbnbUrl: property.airbnbUrl || "",
     vrboUrl: property.vrboUrl || "",
 
-    minNights: Number(property.minNights || 2),
-    maxNights: Number(property.maxNights || 7),
+    minNights: Number(property.minNights || 1),
+    maxNights: Number(property.maxNights || 30),
     scanDays: Number(property.scanDays || 30),
 
     active: property.active === true
@@ -179,11 +209,7 @@ async function scanProperty(property, todayYmd) {
     scanEndYmd
   );
 
-  const gaps = findAvailableGaps(
-    calendar,
-    property.minNights || 2,
-    property.maxNights || 7
-  );
+  const gaps = findAvailableGaps(calendar, 1, scanDays);
 
   const specials = gaps.map((gap) => {
     const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
