@@ -169,8 +169,6 @@ app.get("/api/specials/price-test", async (req, res) => {
 
 const port = process.env.PORT || 10000;
 
-const port = process.env.PORT || 10000;
-
 app.listen(port, () => {
   console.log(`Ocean Specials running on port ${port}`);
 });
