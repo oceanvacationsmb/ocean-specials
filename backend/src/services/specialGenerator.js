@@ -100,22 +100,19 @@ function createFacebookText(special) {
     ? `Book direct and save up to 20%:\n${special.directDateUrl}\n`
     : "";
 
-  const airbnbLine = special.airbnbDateUrl
-    ? `\nAirbnb listing:\n${special.airbnbDateUrl}\n`
-    : "";
-
   const vrboLine = special.vrboDateUrl
-    ? `\nVRBO listing:\n${special.vrboDateUrl}\n`
+    ? `\nVRBO listing with dates:\n${special.vrboDateUrl}\n`
     : "";
 
-  return `${special.promoType} in ${special.location}
+  const airbnbLine = special.airbnbDateUrl
+    ? `\nAirbnb listing with dates:\n${special.airbnbDateUrl}\n`
+    : "";
 
-We have a ${special.nights} night opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests for ${special.checkInNice} to ${special.checkOutNice}.
+  return `${special.sellingPoints.join(" • ")}
 
-${special.sellingPoints.join(" • ")}
+We have a ${special.nights} night opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests for ${special.checkInNice} to ${special.checkOutNice}
 
-${directLine}${airbnbLine}${vrboLine}
-Ocean Vacations
+${directLine}${vrboLine}${airbnbLine}
 oceanvacationsmb.com`;
 }
 
