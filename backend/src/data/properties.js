@@ -10,7 +10,7 @@ export const properties = [
     photoUrl: "https://assets.guesty.com/image/upload/v1777300444/production/68d5ff6bea1895d9005ea411/r2kpgabkalhiqka5rrzh.jpg",
 
     directBookingUrl: "https://oceanvacationsmb.guestybookings.com/en/properties/68db1a3f34efe70012fd1284",
-    airbnbUrl: "https://www.airbnb.com/rooms/1260179399362214063",
+    airbnbUrl: "https://www.airbnb.com/rooms/708211388941105572",
     vrboUrl: "https://www.vrbo.com/3010920?dateless=true",
     googleUrl: "https://www.google.com/travel/hotels/entity/CgsQ3sXCserznbisARAC",
 
