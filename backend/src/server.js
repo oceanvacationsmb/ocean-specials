@@ -62,6 +62,85 @@ app.get("/api/guesty/listings-test", async (req, res) => {
   }
 });
 
+app.get("/api/guesty/listings-simple", async (req, res) => {
+  try {
+    const data = await getAllListings();
+
+    const rawListings =
+      data.results ||
+      data.listings ||
+      data.data ||
+      data.items ||
+      data;
+
+    const listings = Array.isArray(rawListings) ? rawListings : [];
+
+    const simpleListings = listings.map((listing) => {
+      return {
+        listingId: listing._id || listing.id || "",
+        nickname:
+          listing.nickname ||
+          listing.title ||
+          listing.name ||
+          listing.publicName ||
+          "",
+        title:
+          listing.title ||
+          listing.nickname ||
+          listing.name ||
+          listing.publicName ||
+          "",
+        bedrooms:
+          listing.bedrooms ||
+          listing.bedroomsCount ||
+          listing.accommodates?.bedrooms ||
+          "",
+        sleeps:
+          listing.accommodates ||
+          listing.guests ||
+          listing.personCapacity ||
+          listing.occupancy ||
+          listing.terms?.maxOccupancy ||
+          "",
+        city:
+          listing.address?.city ||
+          listing.location?.city ||
+          listing.city ||
+          "",
+        address:
+          listing.address?.full ||
+          listing.address?.street ||
+          listing.address ||
+          "",
+        picture:
+          listing.picture?.regular ||
+          listing.picture?.large ||
+          listing.picture ||
+          listing.pictures?.[0]?.regular ||
+          listing.pictures?.[0]?.large ||
+          listing.pictures?.[0]?.url ||
+          "",
+        active:
+          listing.active !== false &&
+          listing.isListed !== false &&
+          listing.status !== "inactive"
+      };
+    });
+
+    res.json({
+      ok: true,
+      count: simpleListings.length,
+      listings: simpleListings
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
 app.get("/api/guesty/calendar-test", async (req, res) => {
   try {
     const listingId = "68db1a3f34efe70012fd1284";
