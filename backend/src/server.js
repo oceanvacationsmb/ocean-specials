@@ -49,6 +49,83 @@ function safe(value) {
     .replaceAll('"', "&quot;");
 }
 
+function addDays(date, days) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function toYmd(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getMonthName(monthValue) {
+  const date = new Date(monthValue + "-01T00:00:00");
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric"
+  });
+}
+
+function getScanOptions(req) {
+  const today = new Date();
+  const todayYmd = toYmd(today);
+
+  const mode = req.query.mode || "last15";
+  const month = req.query.month || "";
+
+  if (mode === "month" && month) {
+    const start = new Date(month + "-01T00:00:00");
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+
+    return {
+      mode,
+      month,
+      scanFrom: toYmd(start),
+      scanTo: toYmd(end),
+      scanLabel: `${getMonthName(month).toUpperCase()} AVAILABILITY SPECIALS`
+    };
+  }
+
+  if (mode === "next30") {
+    return {
+      mode,
+      month,
+      scanFrom: todayYmd,
+      scanTo: toYmd(addDays(today, 30)),
+      scanLabel: "LAST MINUTE DEALS • NEXT 30 DAYS"
+    };
+  }
+
+  return {
+    mode: "last15",
+    month,
+    scanFrom: todayYmd,
+    scanTo: toYmd(addDays(today, 15)),
+    scanLabel: "LAST MINUTE DEALS • NEXT 15 DAYS"
+  };
+}
+
+function getMonthOptions() {
+  const today = new Date();
+  const options = [];
+
+  for (let i = 0; i < 8; i++) {
+    const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    const value = date.toISOString().slice(0, 7);
+    const label = date.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric"
+    });
+
+    options.push({ value, label });
+  }
+
+  return options;
+}
+
 app.get("/", (req, res) => {
   res.send(`
     <h1>Ocean Specials</h1>
@@ -455,14 +532,15 @@ app.get("/properties", async (req, res) => {
                 directBookingUrl: card.querySelector(".directBookingUrl").value.trim(),
                 airbnbUrl: card.querySelector(".airbnbUrl").value.trim(),
                 vrboUrl: card.querySelector(".vrboUrl").value.trim(),
-                minNights: Number(card.querySelector(".minNights").value || 2),
-                maxNights: Number(card.querySelector(".maxNights").value || 7),
-                scanDays: Number(card.querySelector(".scanDays").value || 30)
+                minNights: Number(card.querySelector(".minNights").value || 1),
+                maxNights: Number(card.querySelector(".maxNights").value || 30),
+                scanDays: Number(card.querySelector(".scanDays").value || 15)
               };
 
               button.disabled = true;
               button.innerText = "Saving...";
               status.innerText = "";
+              status.style.color = "#0b8a42";
 
               try {
                 const response = await fetch("/api/properties/save", {
@@ -558,7 +636,7 @@ app.get("/api/specials/gaps-test", async (req, res) => {
       "2026-06-25"
     );
 
-    const gaps = findAvailableGaps(calendar, 2, 7);
+    const gaps = findAvailableGaps(calendar, 1, 30);
 
     res.json({
       ok: true,
@@ -653,7 +731,9 @@ app.get("/api/specials/price-test", async (req, res) => {
 
 app.get("/api/specials/generate", async (req, res) => {
   try {
-    const result = await generateSpecials();
+    const scanOptions = getScanOptions(req);
+    const result = await generateSpecials([], scanOptions);
+
     res.json(result);
   } catch (error) {
     res.status(500).json({
@@ -666,13 +746,26 @@ app.get("/api/specials/generate", async (req, res) => {
 
 app.get("/specials", async (req, res) => {
   try {
-    const result = await generateSpecials();
+    const scanOptions = getScanOptions(req);
+    const result = await generateSpecials([], scanOptions);
+
+    const monthOptions = getMonthOptions()
+      .map((option) => {
+        const selected = scanOptions.month === option.value ? "selected" : "";
+
+        return `
+          <option value="${safe(option.value)}" ${selected}>
+            ${safe(option.label)}
+          </option>
+        `;
+      })
+      .join("");
 
     const groupButtons = facebookGroups
       .map((group) => {
         return `
-          <button class="group-button" onclick="copyAndOpen(this, '${group.url}')">
-            Copy + Open ${group.name}
+          <button class="group-button" onclick="copyAndOpen(this, '${safe(group.url)}')">
+            Copy + Open ${safe(group.name)}
           </button>
         `;
       })
@@ -755,6 +848,42 @@ app.get("/specials", async (req, res) => {
               padding: 8px 12px;
               border-radius: 8px;
               font-size: 14px;
+              font-weight: 700;
+            }
+
+            .filter-box {
+              background: white;
+              border: 1px solid #e1e8ed;
+              border-radius: 12px;
+              padding: 12px;
+              margin-top: 12px;
+              display: grid;
+              grid-template-columns: 1.5fr 1fr auto;
+              gap: 10px;
+              align-items: end;
+            }
+
+            .filter-box label {
+              font-size: 13px;
+              font-weight: 800;
+              color: #082b45;
+            }
+
+            .filter-box select {
+              width: 100%;
+              box-sizing: border-box;
+              margin-top: 5px;
+              padding: 9px 10px;
+              border-radius: 8px;
+              border: 1px solid #cfd8df;
+              font-size: 14px;
+              background: white;
+            }
+
+            .scan-note {
+              font-size: 13px;
+              color: #546a7b;
+              margin-top: 8px;
               font-weight: 700;
             }
 
@@ -863,6 +992,10 @@ app.get("/specials", async (req, res) => {
                 padding: 10px;
               }
 
+              .filter-box {
+                grid-template-columns: 1fr;
+              }
+
               .top-row {
                 flex-direction: column;
               }
@@ -893,11 +1026,46 @@ app.get("/specials", async (req, res) => {
               <a href="/properties">Properties Dashboard</a>
               <a href="/api/specials/generate">View Raw Specials</a>
             </div>
+
+            <form class="filter-box" method="GET" action="/specials">
+              <label>
+                Scan Window
+                <select name="mode" onchange="toggleMonthBox(this)">
+                  <option value="last15" ${scanOptions.mode === "last15" ? "selected" : ""}>
+                    Last Minute Deals, Today to 15 Days
+                  </option>
+                  <option value="next30" ${scanOptions.mode === "next30" ? "selected" : ""}>
+                    Next 30 Days
+                  </option>
+                  <option value="month" ${scanOptions.mode === "month" ? "selected" : ""}>
+                    Specific Month
+                  </option>
+                </select>
+              </label>
+
+              <label id="monthBox" style="${scanOptions.mode === "month" ? "" : "display:none;"}">
+                Month
+                <select name="month">
+                  ${monthOptions}
+                </select>
+              </label>
+
+              <button type="submit">Scan</button>
+            </form>
+
+            <div class="scan-note">
+              Showing: ${safe(result.scan.label)} | ${safe(result.scan.from)} to ${safe(result.scan.to)}
+            </div>
           </div>
 
           ${cards || `<div class="empty">No property specials found right now.</div>`}
 
           <script>
+            function toggleMonthBox(select) {
+              const monthBox = document.getElementById("monthBox");
+              monthBox.style.display = select.value === "month" ? "" : "none";
+            }
+
             function toggleMessage(button) {
               const card = button.closest(".card");
               card.classList.toggle("open");
