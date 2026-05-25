@@ -1,6 +1,6 @@
 import { getListingCalendar } from "./guestyApi.js";
 import { findAvailableGaps } from "./gapFinder.js";
-import { properties } from "../data/properties.js";
+import { getManagedProperties } from "./propertyManager.js";
 
 function addDays(date, days) {
   const copy = new Date(date);
@@ -27,19 +27,38 @@ function niceDate(ymd) {
   });
 }
 
+function normalizeSellingPoints(value, sleeps) {
+  if (!value) {
+    return [`Sleeps ${sleeps}`];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+
+  return String(value)
+    .split("•")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function addOrUpdateParams(url, params) {
   if (!url) return "";
 
-  const cleanUrl = url.trim();
-  const parsedUrl = new URL(cleanUrl);
+  try {
+    const cleanUrl = url.trim();
+    const parsedUrl = new URL(cleanUrl);
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      parsedUrl.searchParams.set(key, String(value));
-    }
-  });
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        parsedUrl.searchParams.set(key, String(value));
+      }
+    });
 
-  return parsedUrl.toString();
+    return parsedUrl.toString();
+  } catch (error) {
+    return url;
+  }
 }
 
 function buildDatedLinks(property, checkIn, checkOut) {
@@ -118,6 +137,36 @@ function createPropertyPost(property, specials) {
 ${openingsText}
 
 oceanvacationsmb.com`;
+}
+
+function convertManagedProperty(property) {
+  const directBookingUrl =
+    property.directBookingUrl ||
+    `https://oceanvacationsmb.guestybookings.com/en/properties/${property.listingId}`;
+
+  return {
+    id: property.shortId,
+    title: property.title,
+    listingId: property.listingId,
+
+    bedrooms: property.bedrooms,
+    sleeps: property.sleeps,
+    location: property.city,
+
+    sellingPoints: normalizeSellingPoints(property.sellingPoints, property.sleeps),
+
+    photoUrl: property.picture || "",
+
+    directBookingUrl,
+    airbnbUrl: property.airbnbUrl || "",
+    vrboUrl: property.vrboUrl || "",
+
+    minNights: Number(property.minNights || 2),
+    maxNights: Number(property.maxNights || 7),
+    scanDays: Number(property.scanDays || 30),
+
+    active: property.active === true
+  };
 }
 
 async function scanProperty(property, todayYmd) {
@@ -208,15 +257,22 @@ export async function generateSpecials(selectedPropertyIds = []) {
   const today = new Date();
   const todayYmd = toYmd(today);
 
-  const activeProperties = properties.filter((property) => {
-    if (!property.active) return false;
+  const managedProperties = await getManagedProperties();
 
-    if (selectedPropertyIds.length > 0) {
-      return selectedPropertyIds.includes(property.id);
-    }
+  const activeProperties = managedProperties
+    .map(convertManagedProperty)
+    .filter((property) => {
+      if (!property.active) return false;
 
-    return true;
-  });
+      if (selectedPropertyIds.length > 0) {
+        return (
+          selectedPropertyIds.includes(property.id) ||
+          selectedPropertyIds.includes(property.listingId)
+        );
+      }
+
+      return true;
+    });
 
   const propertyResults = [];
   const allSpecials = [];
@@ -236,6 +292,7 @@ export async function generateSpecials(selectedPropertyIds = []) {
       propertyResults.push({
         propertyId: property.id,
         propertyTitle: property.title,
+        listingId: property.listingId,
         error: error.message,
         details: error.response?.data || null,
         specials: [],
