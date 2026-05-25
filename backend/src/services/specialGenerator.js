@@ -61,7 +61,6 @@ function addOrUpdateParams(url, params) {
 function buildDatedLinks(property, checkIn, checkOut) {
   const maxGuests = Number(property.sleeps || 1);
   const airbnbGuests = Math.min(maxGuests, 16);
-  const googleGuests = Math.min(maxGuests, 10);
 
   const directDateUrl = property.directBookingUrl
     ? addOrUpdateParams(property.directBookingUrl, {
@@ -87,22 +86,12 @@ function buildDatedLinks(property, checkIn, checkOut) {
       })
     : "";
 
-  const googleDateUrl = property.googleUrl
-    ? addOrUpdateParams(property.googleUrl, {
-        checkin: checkIn,
-        checkout: checkOut,
-        adults: googleGuests
-      })
-    : "";
-
   return {
     directDateUrl,
     airbnbDateUrl,
     vrboDateUrl,
-    googleDateUrl,
     maxGuests,
-    airbnbGuests,
-    googleGuests
+    airbnbGuests
   };
 }
 
@@ -119,10 +108,6 @@ function createFacebookText(special) {
     ? `\nVRBO listing with dates:\n${special.vrboDateUrl}\n`
     : "";
 
-  const googleLine = special.googleDateUrl
-    ? `\nGoogle listing with dates:\n${special.googleDateUrl}\n`
-    : "";
-
   return `${special.promoType} in ${special.location}
 
 We have a ${special.nights} night opening at this ${special.bedrooms} bedroom property that sleeps up to ${special.sleeps} guests.
@@ -134,9 +119,8 @@ Available: ${special.checkInNice} to ${special.checkOutNice}
 ${directLine}
 Message us for the direct booking special and availability link.
 
-${airbnbLine}${vrboLine}${googleLine}
+${airbnbLine}${vrboLine}
 Ocean Vacations
-Call or text: 843-222-9751
 Website: oceanvacationsmb.com`;
 }
 
@@ -190,16 +174,13 @@ async function scanProperty(property, todayYmd) {
       directBookingUrl: property.directBookingUrl || "",
       airbnbUrl: property.airbnbUrl || "",
       vrboUrl: property.vrboUrl || "",
-      googleUrl: property.googleUrl || "",
 
       directDateUrl: datedLinks.directDateUrl,
       airbnbDateUrl: datedLinks.airbnbDateUrl,
       vrboDateUrl: datedLinks.vrboDateUrl,
-      googleDateUrl: datedLinks.googleDateUrl,
 
       maxGuests: datedLinks.maxGuests,
-      airbnbGuests: datedLinks.airbnbGuests,
-      googleGuests: datedLinks.googleGuests
+      airbnbGuests: datedLinks.airbnbGuests
     };
 
     special.facebookText = createFacebookText(special);
