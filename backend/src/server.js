@@ -17,6 +17,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const facebookGroups = [
+  {
+    name: "SC Airbnb STR",
+    url: "https://www.facebook.com/groups/sc.airbnb.str"
+  },
+  {
+    name: "Group 2",
+    url: "https://www.facebook.com/groups/1113712659905398"
+  },
+  {
+    name: "Group 3",
+    url: "https://www.facebook.com/groups/2736252166756091"
+  },
+  {
+    name: "Group 4",
+    url: "https://www.facebook.com/groups/264018952933987"
+  }
+];
+
 app.get("/", (req, res) => {
   res.send(`
     <h1>Ocean Specials</h1>
@@ -285,32 +304,38 @@ app.get("/specials", async (req, res) => {
   try {
     const result = await generateSpecials();
 
-    const cards = result.specials
-      .map((special) => {
-        if (!special.ok) {
-          return `
-            <div class="card error">
-              <div class="property-title">${special.propertyId || "Property"}</div>
-              <div class="small">Could not scan this property</div>
-              <div class="small">${special.error || ""}</div>
-            </div>
-          `;
-        }
+    const groupButtons = facebookGroups
+      .map((group) => {
+        return `
+          <button class="group-button" onclick="copyAndOpen(this, '${group.url}')">
+            Copy + Open ${group.name}
+          </button>
+        `;
+      })
+      .join("");
 
+    const cards = result.propertyPosts
+      .map((post) => {
         return `
           <div class="card">
             <div class="top-row">
-              <div class="property-title">
-                Found ${special.nights} nights at ${special.propertyId} for ${special.checkInNice} to ${special.checkOutNice}
+              <div>
+                <div class="property-title">
+                  ${post.propertyId} | ${post.openingsCount} openings found
+                </div>
+                <div class="small">
+                  ${post.propertyTitle}
+                </div>
               </div>
-              <div class="badge">${special.promoType}</div>
+              <div class="badge">${post.location}</div>
             </div>
 
-            <div class="small">${special.propertyTitle}</div>
+            <textarea readonly>${post.facebookText}</textarea>
 
-            <textarea readonly>${special.facebookText}</textarea>
-
-            <button onclick="copyText(this)">Copy Message</button>
+            <div class="button-row">
+              <button onclick="copyText(this)">Copy Full Post</button>
+              ${groupButtons}
+            </div>
           </div>
         `;
       })
@@ -332,7 +357,7 @@ app.get("/specials", async (req, res) => {
             }
 
             .header {
-              max-width: 920px;
+              max-width: 960px;
               margin: 0 auto 14px auto;
             }
 
@@ -351,7 +376,7 @@ app.get("/specials", async (req, res) => {
               background: white;
               border-radius: 12px;
               padding: 14px;
-              max-width: 920px;
+              max-width: 960px;
               margin: 0 auto 12px auto;
               box-shadow: 0 3px 12px rgba(0,0,0,0.06);
               border: 1px solid #e1e8ed;
@@ -390,7 +415,7 @@ app.get("/specials", async (req, res) => {
 
             textarea {
               width: 100%;
-              height: 200px;
+              height: 520px;
               border: 1px solid #cfd8df;
               border-radius: 10px;
               padding: 10px;
@@ -402,8 +427,14 @@ app.get("/specials", async (req, res) => {
               background: #fbfdfe;
             }
 
-            button {
+            .button-row {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
               margin-top: 8px;
+            }
+
+            button {
               background: #082b45;
               color: white;
               border: none;
@@ -418,12 +449,12 @@ app.get("/specials", async (req, res) => {
               opacity: 0.92;
             }
 
-            .error {
-              border-color: #f0b4b4;
+            .group-button {
+              background: #1877f2;
             }
 
             .empty {
-              max-width: 920px;
+              max-width: 960px;
               margin: 0 auto;
               background: white;
               padding: 16px;
@@ -445,7 +476,11 @@ app.get("/specials", async (req, res) => {
               }
 
               textarea {
-                height: 240px;
+                height: 520px;
+              }
+
+              button {
+                width: 100%;
               }
             }
           </style>
@@ -455,22 +490,42 @@ app.get("/specials", async (req, res) => {
           <div class="header">
             <h1>Ocean Vacations Specials</h1>
             <div class="sub">
-              Copy the message and paste directly into Facebook.
+              One card per property. Copy once, paste once.
             </div>
           </div>
 
-          ${cards || `<div class="empty">No specials found right now.</div>`}
+          ${cards || `<div class="empty">No property specials found right now.</div>`}
 
           <script>
-            function copyText(button) {
-              const textarea = button.previousElementSibling;
+            function getTextareaFromButton(button) {
+              return button.closest(".card").querySelector("textarea");
+            }
+
+            function copyTextarea(textarea) {
               textarea.select();
               textarea.setSelectionRange(0, 999999);
               document.execCommand("copy");
+            }
+
+            function copyText(button) {
+              const textarea = getTextareaFromButton(button);
+              copyTextarea(textarea);
 
               button.innerText = "Copied";
               setTimeout(() => {
-                button.innerText = "Copy Message";
+                button.innerText = "Copy Full Post";
+              }, 1500);
+            }
+
+            function copyAndOpen(button, url) {
+              const textarea = getTextareaFromButton(button);
+              copyTextarea(textarea);
+
+              button.innerText = "Copied + Opening";
+              window.open(url, "_blank");
+
+              setTimeout(() => {
+                button.innerText = button.innerText.replace("Copied + Opening", "Copy + Open Group");
               }, 1500);
             }
           </script>
