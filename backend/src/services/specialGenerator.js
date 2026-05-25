@@ -20,6 +20,7 @@ function diffDays(startYmd, endYmd) {
 
 function niceDate(ymd) {
   const date = new Date(ymd + "T00:00:00");
+
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric"
@@ -30,6 +31,7 @@ function getPromoType(daysUntilCheckIn) {
   if (daysUntilCheckIn <= 7) return "Last Minute Special";
   if (daysUntilCheckIn <= 14) return "Next Week Opening";
   if (daysUntilCheckIn <= 30) return "Open Gap Special";
+
   return "Direct Booking Special";
 }
 
@@ -37,12 +39,21 @@ function getHeadline(daysUntilCheckIn) {
   if (daysUntilCheckIn <= 7) return "LAST MINUTE SPECIAL";
   if (daysUntilCheckIn <= 14) return "NEXT WEEK OPENING";
   if (daysUntilCheckIn <= 30) return "OPEN GAP SPECIAL";
+
   return "DIRECT BOOKING SPECIAL";
 }
 
 function createFacebookText(special) {
-  const reviewLine = special.airbnbReviewUrl
-    ? `\nSee reviews on Airbnb:\n${special.airbnbReviewUrl}\n`
+  const airbnbLine = special.airbnbUrl
+    ? `\nAirbnb listing:\n${special.airbnbUrl}\n`
+    : "";
+
+  const vrboLine = special.vrboUrl
+    ? `\nVRBO listing:\n${special.vrboUrl}\n`
+    : "";
+
+  const googleLine = special.googleUrl
+    ? `\nGoogle listing:\n${special.googleUrl}\n`
     : "";
 
   return `${special.promoType} in ${special.location}
@@ -57,7 +68,10 @@ Book direct and save up to 20%.
 
 Message us for the direct booking special and availability link.
 
-${reviewLine}
+${airbnbLine}${vrboLine}${googleLine}
+Book direct:
+${special.directBookingUrl}
+
 Ocean Vacations
 Call or text: 843-222-9751
 Website: oceanvacationsmb.com`;
@@ -84,25 +98,35 @@ async function scanProperty(property, todayYmd) {
 
     const special = {
       ok: true,
+
       propertyId: property.id,
       propertyTitle: property.title,
+      listingId: property.listingId,
+
       location: property.location,
       bedrooms: property.bedrooms,
       sleeps: property.sleeps,
       sellingPoints: property.sellingPoints || [],
+
       photoUrl: property.photoUrl || "",
+
       checkIn: gap.checkIn,
       checkOut: gap.checkOut,
       checkInNice: niceDate(gap.checkIn),
       checkOutNice: niceDate(gap.checkOut),
       nights: gap.nights,
       daysUntilCheckIn,
+
       promoType: getPromoType(daysUntilCheckIn),
       headline: getHeadline(daysUntilCheckIn),
+
       offerText: "Save up to 20% when booking direct",
       callToAction: "Message us for the direct booking special",
-      directBookingUrl: property.directBookingUrl,
-      airbnbReviewUrl: property.airbnbReviewUrl || ""
+
+      directBookingUrl: property.directBookingUrl || "",
+      airbnbUrl: property.airbnbUrl || "",
+      vrboUrl: property.vrboUrl || "",
+      googleUrl: property.googleUrl || ""
     };
 
     special.facebookText = createFacebookText(special);
@@ -140,6 +164,7 @@ export async function generateSpecials(selectedPropertyIds = []) {
   for (const property of activeProperties) {
     try {
       const result = await scanProperty(property, todayYmd);
+
       propertyResults.push(result);
       allSpecials.push(...result.specials);
     } catch (error) {
