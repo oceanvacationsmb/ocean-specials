@@ -1,6 +1,5 @@
-import { getListingCalendar, createReservationQuote } from "./guestyApi.js";
+import { getListingCalendar } from "./guestyApi.js";
 import { findAvailableGaps } from "./gapFinder.js";
-import { getTotalFromQuote, applyDiscount, formatMoney } from "./priceHelper.js";
 
 const property = {
   id: "827B",
@@ -14,7 +13,8 @@ const property = {
     "https://oceanvacationsmb.guestybookings.com/en/properties/68db1a3f34efe70012fd1284",
   airbnbReviewUrl: "",
   minNights: 2,
-  maxNights: 7
+  maxNights: 7,
+  scanDays: 30
 };
 
 function addDays(date, days) {
@@ -33,47 +33,6 @@ function diffDays(startYmd, endYmd) {
   return Math.round((end - start) / (1000 * 60 * 60 * 24));
 }
 
-function getDiscountPercent(daysUntilCheckIn) {
-  if (daysUntilCheckIn >= 0 && daysUntilCheckIn <= 7) return 15;
-  if (daysUntilCheckIn >= 8 && daysUntilCheckIn <= 13) return 10;
-  if (daysUntilCheckIn >= 14 && daysUntilCheckIn <= 30) return 5;
-  return 0;
-}
-
-function getPromoType(daysUntilCheckIn) {
-  if (daysUntilCheckIn <= 7) return "Last Minute Special";
-  if (daysUntilCheckIn <= 13) return "Gap Stay Special";
-  return "Open Date Special";
-}
-
-function createFacebookText(special) {
-  const reviewLine = special.airbnbReviewUrl
-    ? `\nSee reviews on Airbnb:\n${special.airbnbReviewUrl}\n`
-    : "";
-
-  return `Last minute opening in ${special.location}
-
-We have a ${special.nights} night opening at this ${special.bedrooms} bedroom home that sleeps up to ${special.sleeps} guests.
-
-${special.sellingPoints.join(" • ")}
-
-Available: ${special.checkInNice} to ${special.checkOutNice}
-
-Regular total: ${special.regularTotalFormatted}
-Special direct price: ${special.specialTotalFormatted}
-Save ${special.discountPercent}% when booking direct.
-
-${reviewLine}
-Direct booking:
-${special.directBookingUrl}
-
-Call or text:
-843-222-9751
-
-Ocean Vacations
-oceanvacationsmb.com`;
-}
-
 function niceDate(ymd) {
   const date = new Date(ymd + "T00:00:00");
   return date.toLocaleDateString("en-US", {
@@ -82,14 +41,47 @@ function niceDate(ymd) {
   });
 }
 
-async function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function getPromoType(daysUntilCheckIn) {
+  if (daysUntilCheckIn <= 7) return "Last Minute Special";
+  if (daysUntilCheckIn <= 14) return "Next Week Opening";
+  if (daysUntilCheckIn <= 30) return "Open Gap Special";
+  return "Direct Booking Special";
+}
+
+function getHeadline(daysUntilCheckIn) {
+  if (daysUntilCheckIn <= 7) return "LAST MINUTE SPECIAL";
+  if (daysUntilCheckIn <= 14) return "NEXT WEEK OPENING";
+  if (daysUntilCheckIn <= 30) return "OPEN GAP SPECIAL";
+  return "DIRECT BOOKING SPECIAL";
+}
+
+function createFacebookText(special) {
+  const reviewLine = special.airbnbReviewUrl
+    ? `\nSee reviews on Airbnb:\n${special.airbnbReviewUrl}\n`
+    : "";
+
+  return `${special.promoType} in ${special.location}
+
+We have a ${special.nights} night opening at this ${special.bedrooms} bedroom home that sleeps up to ${special.sleeps} guests.
+
+${special.sellingPoints.join(" • ")}
+
+Available: ${special.checkInNice} to ${special.checkOutNice}
+
+Book direct and save up to 20%.
+
+Message us for the direct booking special and availability link.
+
+${reviewLine}
+Ocean Vacations
+Call or text: 843-222-9751
+Website: oceanvacationsmb.com`;
 }
 
 export async function generateSpecials() {
   const today = new Date();
   const todayYmd = toYmd(today);
-  const scanEndYmd = toYmd(addDays(today, 30));
+  const scanEndYmd = toYmd(addDays(today, property.scanDays));
 
   const calendar = await getListingCalendar(
     property.listingId,
@@ -99,54 +91,8 @@ export async function generateSpecials() {
 
   const gaps = findAvailableGaps(calendar, property.minNights, property.maxNights);
 
-  const specials = [];
-  const gapsToQuote = gaps.slice(0, 1);
-    for (const gap of gapsToQuote) {
+  const specials = gaps.map((gap) => {
     const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
-    const discountPercent = getDiscountPercent(daysUntilCheckIn);
-
-    if (!discountPercent) continue;
-
-    let quote;
-    let price;
-
-    try {
-      quote = await createReservationQuote({
-        listingId: property.listingId,
-        checkInDateLocalized: gap.checkIn,
-        checkOutDateLocalized: gap.checkOut,
-        guestsCount: property.sleeps
-      });
-
-      price = getTotalFromQuote(quote);
-
-      if (!price) {
-        specials.push({
-          propertyId: property.id,
-          checkIn: gap.checkIn,
-          checkOut: gap.checkOut,
-          nights: gap.nights,
-          ok: false,
-          error: "Could not read price from Guesty quote"
-        });
-
-        continue;
-      }
-    } catch (error) {
-      specials.push({
-        propertyId: property.id,
-        checkIn: gap.checkIn,
-        checkOut: gap.checkOut,
-        nights: gap.nights,
-        ok: false,
-        error: error.message,
-        details: error.response?.data || null
-      });
-
-      continue;
-    }
-
-    const discount = applyDiscount(price.regularTotal, discountPercent);
 
     const special = {
       ok: true,
@@ -163,26 +109,17 @@ export async function generateSpecials() {
       nights: gap.nights,
       daysUntilCheckIn,
       promoType: getPromoType(daysUntilCheckIn),
-      discountPercent,
-      accommodation: price.accommodation,
-      cleaning: price.cleaning,
-      taxes: price.taxes,
-      regularTotal: price.regularTotal,
-      discountAmount: discount.discountAmount,
-      specialTotal: discount.specialTotal,
-      regularTotalFormatted: formatMoney(price.regularTotal),
-      discountAmountFormatted: formatMoney(discount.discountAmount),
-      specialTotalFormatted: formatMoney(discount.specialTotal),
+      headline: getHeadline(daysUntilCheckIn),
+      offerText: "Save up to 20% when booking direct",
+      callToAction: "Message us for the direct booking special",
       directBookingUrl: property.directBookingUrl,
       airbnbReviewUrl: property.airbnbReviewUrl
     };
 
     special.facebookText = createFacebookText(special);
 
-    specials.push(special);
-
-    await wait(800);
-  }
+    return special;
+  });
 
   return {
     ok: true,
@@ -190,8 +127,9 @@ export async function generateSpecials() {
     scan: {
       from: todayYmd,
       to: scanEndYmd,
+      scanDays: property.scanDays,
       gapsFound: gaps.length,
-      specialsCreated: specials.filter((item) => item.ok).length
+      specialsCreated: specials.length
     },
     specials
   };
