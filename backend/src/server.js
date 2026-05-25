@@ -1,6 +1,12 @@
 import express from "express";
 import cors from "cors";
-import { testGuestyConnection, getListingCalendar, createReservationQuote } from "./services/guestyApi.js";
+
+import {
+  testGuestyConnection,
+  getListingCalendar,
+  createReservationQuote
+} from "./services/guestyApi.js";
+
 import { findAvailableGaps } from "./services/gapFinder.js";
 import { getTotalFromQuote, applyDiscount } from "./services/priceHelper.js";
 import { generateSpecials } from "./services/specialGenerator.js";
@@ -14,6 +20,7 @@ app.get("/", (req, res) => {
   res.send(`
     <h1>Ocean Specials</h1>
     <p>Server is running.</p>
+    <p><a href="/specials">Open Specials Page</a></p>
   `);
 });
 
@@ -116,10 +123,6 @@ app.get("/api/guesty/quote-test", async (req, res) => {
   }
 });
 
-app.get("/api/guesty/quote-test", async (req, res) => {
-  // old quote test code here
-});
-
 app.get("/api/specials/price-test", async (req, res) => {
   try {
     const listingId = "68db1a3f34efe70012fd1284";
@@ -190,42 +193,32 @@ app.get("/specials", async (req, res) => {
         if (!special.ok) {
           return `
             <div class="card error">
-              <h2>${special.propertyId}</h2>
-              <p>Could not create special for ${special.checkIn} to ${special.checkOut}</p>
-              <p>${special.error || ""}</p>
+              <div class="property-title">${special.propertyId || "Property"}</div>
+              <div class="small">Could not scan this property</div>
+              <div class="small">${special.error || ""}</div>
             </div>
           `;
         }
 
         return `
           <div class="card">
-            ${
-              special.photoUrl
-                ? `<img class="property-photo" src="${special.photoUrl}" alt="${special.propertyTitle}" />`
-                : ""
-            }
-
-            <div class="badge">${special.headline || special.promoType}</div>
-
-            <h2>${special.propertyTitle}</h2>
-            <p class="location">${special.location}</p>
-
-            <div class="dates">
-              ${special.checkInNice} to ${special.checkOutNice}
+            <div class="top-row">
+              <div>
+                <div class="property-title">${special.propertyId} - ${special.propertyTitle}</div>
+                <div class="small">${special.location} • ${special.bedrooms}BR • Sleeps ${special.sleeps}</div>
+              </div>
+              <div class="badge">${special.promoType}</div>
             </div>
 
-            <p>${special.nights} nights • ${special.bedrooms}BR • Sleeps ${special.sleeps}</p>
-            <p>${special.sellingPoints.join(" • ")}</p>
+            <div class="dates">${special.checkInNice} to ${special.checkOutNice}</div>
 
-            <div class="offer-box">
-              <div class="offer-main">Save up to 20%</div>
-              <div class="offer-sub">when booking direct</div>
-              <p>Message us for the direct booking special and availability link.</p>
+            <div class="small">
+              ${special.nights} nights • ${special.sellingPoints.join(" • ")}
             </div>
 
             <textarea readonly>${special.facebookText}</textarea>
 
-            <button onclick="copyText(this)">Copy Facebook Text</button>
+            <button onclick="copyText(this)">Copy Message</button>
           </div>
         `;
       })
@@ -240,128 +233,160 @@ app.get("/specials", async (req, res) => {
           <style>
             body {
               font-family: Arial, sans-serif;
-              background: #f4f7f8;
+              background: #f5f7f8;
               margin: 0;
-              padding: 30px;
-              color: #123;
+              padding: 16px;
+              color: #102a43;
+            }
+
+            .header {
+              max-width: 920px;
+              margin: 0 auto 14px auto;
             }
 
             h1 {
-              margin-bottom: 5px;
+              font-size: 22px;
+              margin: 0 0 4px 0;
+              color: #082b45;
             }
 
             .sub {
-              color: #567;
-              margin-bottom: 25px;
+              color: #607080;
+              font-size: 14px;
             }
 
             .card {
               background: white;
-              border-radius: 16px;
-              padding: 24px;
-              max-width: 820px;
-              margin-bottom: 24px;
-              box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-              border: 1px solid #e6eef2;
-              overflow: hidden;
+              border-radius: 12px;
+              padding: 14px;
+              max-width: 920px;
+              margin: 0 auto 12px auto;
+              box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+              border: 1px solid #e1e8ed;
             }
 
-            .property-photo {
-              width: 100%;
-              max-height: 360px;
-              object-fit: cover;
-              border-radius: 14px;
-              margin-bottom: 20px;
-              display: block;
+            .top-row {
+              display: flex;
+              justify-content: space-between;
+              gap: 10px;
+              align-items: flex-start;
+            }
+
+            .property-title {
+              font-size: 15px;
+              font-weight: 700;
+              color: #082b45;
+              line-height: 1.3;
+            }
+
+            .small {
+              font-size: 13px;
+              color: #546a7b;
+              margin-top: 4px;
+              line-height: 1.35;
             }
 
             .badge {
-              display: inline-block;
               background: #007f8f;
               color: white;
-              padding: 8px 14px;
+              padding: 5px 9px;
               border-radius: 999px;
-              font-weight: bold;
-              margin-bottom: 12px;
-              letter-spacing: 0.5px;
-            }
-
-            .location {
-              color: #567;
-              margin-top: -8px;
+              font-size: 12px;
+              font-weight: 700;
+              white-space: nowrap;
             }
 
             .dates {
-              font-size: 32px;
-              font-weight: bold;
-              color: #082b45;
-              margin: 18px 0;
-            }
-
-            .offer-box {
-              background: #eef8f9;
-              padding: 18px;
-              border-radius: 12px;
-              margin: 18px 0;
-              border: 1px solid #d8eef1;
-            }
-
-            .offer-main {
-              font-size: 34px;
-              font-weight: bold;
-              color: #007f8f;
-              text-transform: uppercase;
-            }
-
-            .offer-sub {
-              font-size: 20px;
-              font-weight: bold;
-              color: #082b45;
-              margin-top: 4px;
+              font-size: 19px;
+              font-weight: 800;
+              color: #0b3d5c;
+              margin: 10px 0 4px 0;
             }
 
             textarea {
               width: 100%;
-              height: 260px;
-              border: 1px solid #ccd;
-              border-radius: 12px;
-              padding: 14px;
-              font-size: 15px;
+              height: 190px;
+              border: 1px solid #cfd8df;
+              border-radius: 10px;
+              padding: 10px;
+              font-size: 14px;
               box-sizing: border-box;
               margin-top: 10px;
+              line-height: 1.4;
+              resize: vertical;
+              background: #fbfdfe;
             }
 
             button {
-              margin-top: 12px;
+              margin-top: 8px;
               background: #082b45;
               color: white;
               border: none;
-              padding: 14px 18px;
-              border-radius: 10px;
-              font-size: 16px;
+              padding: 9px 13px;
+              border-radius: 8px;
+              font-size: 14px;
               cursor: pointer;
+              font-weight: 700;
+            }
+
+            button:hover {
+              opacity: 0.92;
             }
 
             .error {
               border-color: #f0b4b4;
             }
+
+            .empty {
+              max-width: 920px;
+              margin: 0 auto;
+              background: white;
+              padding: 16px;
+              border-radius: 12px;
+              border: 1px solid #e1e8ed;
+            }
+
+            @media (max-width: 650px) {
+              body {
+                padding: 10px;
+              }
+
+              .top-row {
+                flex-direction: column;
+              }
+
+              .badge {
+                width: fit-content;
+              }
+
+              textarea {
+                height: 230px;
+              }
+            }
           </style>
         </head>
+
         <body>
-          <h1>Ocean Vacations Specials</h1>
-          <div class="sub">
-            Generated from Guesty availability.
+          <div class="header">
+            <h1>Ocean Vacations Specials</h1>
+            <div class="sub">
+              Copy the message and paste directly into Facebook.
+            </div>
           </div>
 
-          ${cards || "<p>No specials found right now.</p>"}
+          ${cards || `<div class="empty">No specials found right now.</div>`}
 
           <script>
             function copyText(button) {
               const textarea = button.previousElementSibling;
               textarea.select();
+              textarea.setSelectionRange(0, 999999);
               document.execCommand("copy");
+
               button.innerText = "Copied";
-              setTimeout(() => button.innerText = "Copy Facebook Text", 1500);
+              setTimeout(() => {
+                button.innerText = "Copy Message";
+              }, 1500);
             }
           </script>
         </body>
