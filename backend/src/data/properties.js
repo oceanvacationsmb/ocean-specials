@@ -16,3 +16,19 @@ export const properties = [
     active: true
   }
 ];
+{
+  id: "NEXT_PROPERTY",
+  title: "Property Title",
+  listingId: "Guesty listing id",
+  bedrooms: 0,
+  sleeps: 0,
+  location: "Myrtle Beach",
+  sellingPoints: ["Pool", "Ocean View", "Walk to Beach"],
+  photoUrl: "image link",
+  directBookingUrl: "booking link",
+  airbnbReviewUrl: "",
+  minNights: 2,
+  maxNights: 7,
+  scanDays: 30,
+  active: true
+}
