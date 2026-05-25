@@ -100,8 +100,8 @@ export async function generateSpecials() {
   const gaps = findAvailableGaps(calendar, property.minNights, property.maxNights);
 
   const specials = [];
-
-  for (const gap of gaps) {
+  const gapsToQuote = gaps.slice(0, 1);
+    for (const gap of gapsToQuote) {
     const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
     const discountPercent = getDiscountPercent(daysUntilCheckIn);
 
