@@ -55,6 +55,7 @@ function getBathrooms(listing) {
   return (
     listing.bathrooms ||
     listing.bathroomsCount ||
+    listing.bathroomsNumber ||
     listing.accommodates?.bathrooms ||
     listing.terms?.bathrooms ||
     ""
@@ -76,10 +77,10 @@ function getSleeps(listing) {
 
 function getTitle(listing) {
   return (
-    listing.nickname ||
     listing.title ||
     listing.name ||
     listing.publicName ||
+    listing.nickname ||
     ""
   );
 }
