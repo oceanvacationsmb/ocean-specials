@@ -95,3 +95,18 @@ export async function createReservationQuote({
 
   return response.data;
 }
+
+export async function getAllListings() {
+  const token = await getGuestyToken();
+
+  const response = await axios.get(`${API_BASE}/listings`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    params: {
+      limit: 100
+    }
+  });
+
+  return response.data;
+}
