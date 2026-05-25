@@ -50,3 +50,20 @@ export async function testGuestyConnection() {
     tokenPreview: token.slice(0, 8) + "..."
   };
 }
+
+export async function getListingCalendar(listingId, from, to) {
+  const token = await getGuestyToken();
+
+  const response = await axios.get(`${API_BASE}/listings/${listingId}/calendar`, {
+    params: {
+      from,
+      to
+    },
+    headers: {
+      accept: "application/json",
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  return response.data;
+}
