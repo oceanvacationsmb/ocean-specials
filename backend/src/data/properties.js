@@ -12,7 +12,7 @@ export const properties = [
     directBookingUrl: "https://oceanvacationsmb.guestybookings.com/en/properties/68db1a3f34efe70012fd1284",
     airbnbUrl: "https://www.airbnb.com/rooms/1260179399362214063",
     vrboUrl: "https://www.vrbo.com/3010920?dateless=true",
-    google: "https://www.google.com/travel/hotels/entity/CgsQ3sXCserznbisARAC",
+    googleUrl: "https://www.google.com/travel/hotels/entity/CgsQ3sXCserznbisARAC",
 
     minNights: 2,
     maxNights: 7,
