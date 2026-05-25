@@ -1,6 +1,7 @@
 {
   "name": "ocean-specials-backend",
   "version": "1.0.0",
+  "description": "Ocean Vacations specials generator",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -8,8 +9,10 @@
   },
   "dependencies": {
     "axios": "^1.7.9",
+    "cloudinary": "^2.5.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
   }
 }
