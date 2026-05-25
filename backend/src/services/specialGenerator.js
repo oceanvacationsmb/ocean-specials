@@ -65,10 +65,9 @@ function buildDatedLinks(property, checkIn, checkOut) {
 
   const directDateUrl = property.directBookingUrl
     ? addOrUpdateParams(property.directBookingUrl, {
+        minOccupancy: maxGuests,
         checkIn,
-        checkOut,
-        guests: maxGuests,
-        adults: maxGuests
+        checkOut
       })
     : "";
 
@@ -82,9 +81,9 @@ function buildDatedLinks(property, checkIn, checkOut) {
 
   const vrboDateUrl = property.vrboUrl
     ? addOrUpdateParams(property.vrboUrl, {
-        arrival: checkIn,
-        departure: checkOut,
-        adultsCount: maxGuests
+        startDate: checkIn,
+        endDate: checkOut,
+        adults: maxGuests
       })
     : "";
 
@@ -108,6 +107,10 @@ function buildDatedLinks(property, checkIn, checkOut) {
 }
 
 function createFacebookText(special) {
+  const directLine = special.directDateUrl
+    ? `Book direct and save up to 20%:\n${special.directDateUrl}\n`
+    : "";
+
   const airbnbLine = special.airbnbDateUrl
     ? `\nAirbnb listing with dates:\n${special.airbnbDateUrl}\n`
     : "";
@@ -128,14 +131,10 @@ ${special.sellingPoints.join(" • ")}
 
 Available: ${special.checkInNice} to ${special.checkOutNice}
 
-Book direct and save up to 20%.
-
+${directLine}
 Message us for the direct booking special and availability link.
 
 ${airbnbLine}${vrboLine}${googleLine}
-Book direct and save:
-${special.directDateUrl || special.directBookingUrl}
-
 Ocean Vacations
 Call or text: 843-222-9751
 Website: oceanvacationsmb.com`;
@@ -159,7 +158,6 @@ async function scanProperty(property, todayYmd) {
 
   const specials = gaps.map((gap) => {
     const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
-
     const datedLinks = buildDatedLinks(property, gap.checkIn, gap.checkOut);
 
     const special = {
