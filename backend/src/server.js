@@ -203,18 +203,13 @@ app.get("/specials", async (req, res) => {
         return `
           <div class="card">
             <div class="top-row">
-              <div>
-                <div class="property-title">${special.propertyId} - ${special.propertyTitle}</div>
-                <div class="small">${special.location} • ${special.bedrooms}BR • Sleeps ${special.sleeps}</div>
+              <div class="property-title">
+                Found ${special.nights} nights at ${special.propertyId} for ${special.checkInNice} to ${special.checkOutNice}
               </div>
               <div class="badge">${special.promoType}</div>
             </div>
 
-            <div class="dates">${special.checkInNice} to ${special.checkOutNice}</div>
-
-            <div class="small">
-              ${special.nights} nights • ${special.sellingPoints.join(" • ")}
-            </div>
+            <div class="small">${special.propertyTitle}</div>
 
             <textarea readonly>${special.facebookText}</textarea>
 
@@ -273,16 +268,16 @@ app.get("/specials", async (req, res) => {
             }
 
             .property-title {
-              font-size: 15px;
+              font-size: 16px;
               font-weight: 700;
               color: #082b45;
-              line-height: 1.3;
+              line-height: 1.35;
             }
 
             .small {
               font-size: 13px;
               color: #546a7b;
-              margin-top: 4px;
+              margin-top: 5px;
               line-height: 1.35;
             }
 
@@ -296,16 +291,9 @@ app.get("/specials", async (req, res) => {
               white-space: nowrap;
             }
 
-            .dates {
-              font-size: 19px;
-              font-weight: 800;
-              color: #0b3d5c;
-              margin: 10px 0 4px 0;
-            }
-
             textarea {
               width: 100%;
-              height: 190px;
+              height: 200px;
               border: 1px solid #cfd8df;
               border-radius: 10px;
               padding: 10px;
@@ -360,7 +348,7 @@ app.get("/specials", async (req, res) => {
               }
 
               textarea {
-                height: 230px;
+                height: 240px;
               }
             }
           </style>
