@@ -199,7 +199,14 @@ app.get("/specials", async (req, res) => {
 
         return `
           <div class="card">
-            <div class="badge">${special.promoType}</div>
+            ${
+              special.photoUrl
+                ? `<img class="property-photo" src="${special.photoUrl}" alt="${special.propertyTitle}" />`
+                : ""
+            }
+
+            <div class="badge">${special.headline || special.promoType}</div>
+
             <h2>${special.propertyTitle}</h2>
             <p class="location">${special.location}</p>
 
@@ -210,10 +217,10 @@ app.get("/specials", async (req, res) => {
             <p>${special.nights} nights • ${special.bedrooms}BR • Sleeps ${special.sleeps}</p>
             <p>${special.sellingPoints.join(" • ")}</p>
 
-            <div class="price-box">
-              <p>Regular Total: <strong>${special.regularTotalFormatted}</strong></p>
-              <p>Discount: <strong>${special.discountPercent}% off</strong></p>
-              <p class="special-price">Special Direct Price: <strong>${special.specialTotalFormatted}</strong></p>
+            <div class="offer-box">
+              <div class="offer-main">Save up to 20%</div>
+              <div class="offer-sub">when booking direct</div>
+              <p>Message us for the direct booking special and availability link.</p>
             </div>
 
             <textarea readonly>${special.facebookText}</textarea>
@@ -252,10 +259,20 @@ app.get("/specials", async (req, res) => {
               background: white;
               border-radius: 16px;
               padding: 24px;
-              max-width: 760px;
+              max-width: 820px;
               margin-bottom: 24px;
               box-shadow: 0 8px 24px rgba(0,0,0,0.08);
               border: 1px solid #e6eef2;
+              overflow: hidden;
+            }
+
+            .property-photo {
+              width: 100%;
+              max-height: 360px;
+              object-fit: cover;
+              border-radius: 14px;
+              margin-bottom: 20px;
+              display: block;
             }
 
             .badge {
@@ -266,6 +283,7 @@ app.get("/specials", async (req, res) => {
               border-radius: 999px;
               font-weight: bold;
               margin-bottom: 12px;
+              letter-spacing: 0.5px;
             }
 
             .location {
@@ -274,22 +292,32 @@ app.get("/specials", async (req, res) => {
             }
 
             .dates {
-              font-size: 28px;
+              font-size: 32px;
               font-weight: bold;
               color: #082b45;
               margin: 18px 0;
             }
 
-            .price-box {
+            .offer-box {
               background: #eef8f9;
-              padding: 16px;
+              padding: 18px;
               border-radius: 12px;
               margin: 18px 0;
+              border: 1px solid #d8eef1;
             }
 
-            .special-price {
-              font-size: 22px;
+            .offer-main {
+              font-size: 34px;
+              font-weight: bold;
               color: #007f8f;
+              text-transform: uppercase;
+            }
+
+            .offer-sub {
+              font-size: 20px;
+              font-weight: bold;
+              color: #082b45;
+              margin-top: 4px;
             }
 
             textarea {
@@ -322,7 +350,7 @@ app.get("/specials", async (req, res) => {
         <body>
           <h1>Ocean Vacations Specials</h1>
           <div class="sub">
-            Generated from Guesty availability and pricing.
+            Generated from Guesty availability.
           </div>
 
           ${cards || "<p>No specials found right now.</p>"}
