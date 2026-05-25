@@ -18,22 +18,23 @@ function toYmd(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function addDays(date, days) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
+function titleCase(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function niceDate(ymd) {
-  const date = new Date(ymd + "T00:00:00");
+function isInsideScan(dateYmd, scanFrom, scanTo) {
+  return dateYmd >= scanFrom && dateYmd < scanTo;
+}
 
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric"
+function isDateOpen(dateYmd, specials) {
+  return (specials || []).some((special) => {
+    return dateYmd >= special.checkIn && dateYmd < special.checkOut;
   });
 }
 
-function monthName(year, monthIndex) {
+function monthTitle(year, monthIndex) {
   const date = new Date(year, monthIndex, 1);
 
   return date.toLocaleDateString("en-US", {
@@ -42,23 +43,103 @@ function monthName(year, monthIndex) {
   }).toUpperCase();
 }
 
-function isDateInRange(dateYmd, startYmd, endYmd) {
-  return dateYmd >= startYmd && dateYmd < endYmd;
+function getMonths(scanFrom, scanTo) {
+  const start = new Date(scanFrom + "T00:00:00");
+  const end = new Date(scanTo + "T00:00:00");
+
+  const months = [];
+  const current = new Date(start.getFullYear(), start.getMonth(), 1);
+
+  while (current < end && months.length < 2) {
+    months.push({
+      year: current.getFullYear(),
+      monthIndex: current.getMonth()
+    });
+
+    current.setMonth(current.getMonth() + 1);
+  }
+
+  return months;
 }
 
-function normalizeSellingPoints(value, bedrooms, sleeps) {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean);
+function getAreaName(post) {
+  const text = `${post.propertyTitle || ""} ${post.location || ""}`.toLowerCase();
+
+  if (text.includes("cherry grove")) return "Cherry Grove Beach";
+  if (text.includes("murrells")) return "Murrells Inlet";
+  if (text.includes("surfside")) return "Surfside Beach";
+  if (text.includes("north myrtle")) return "North Myrtle Beach";
+  if (text.includes("myrtle")) return "Myrtle Beach";
+
+  return post.location || "Beach";
+}
+
+function getAreaTopText(post) {
+  const area = getAreaName(post);
+
+  if (area.toLowerCase().includes("cherry grove")) {
+    return {
+      top: "CHERRY GROVE",
+      script: "Beach",
+      bottom: "NORTH MYRTLE BEACH, SC"
+    };
   }
 
-  if (typeof value === "string" && value.trim()) {
-    return value
-      .split("•")
-      .map((item) => item.trim())
-      .filter(Boolean);
+  if (area.toLowerCase().includes("murrells")) {
+    return {
+      top: "MURRELLS INLET",
+      script: "Beach Stay",
+      bottom: "SOUTH CAROLINA"
+    };
   }
 
-  return [`${bedrooms}BR`, `Sleeps ${sleeps}`];
+  if (area.toLowerCase().includes("surfside")) {
+    return {
+      top: "SURFSIDE",
+      script: "Beach",
+      bottom: "SOUTH CAROLINA"
+    };
+  }
+
+  return {
+    top: area.toUpperCase(),
+    script: "Beach",
+    bottom: "SOUTH CAROLINA"
+  };
+}
+
+function getFeatureName(post) {
+  const text = `${post.propertyTitle || ""} ${(post.sellingPoints || []).join(" ")}`.toLowerCase();
+
+  if (text.includes("oceanfront")) return "Oceanfront";
+  if (text.includes("private pool") || text.includes("pool")) return "Private Pool";
+  if (text.includes("walk")) return "Walk to Beach";
+
+  return getAreaName(post);
+}
+
+function getOpenDateText(post) {
+  const specials = post.specials || [];
+
+  if (specials.length === 0) {
+    return "Contact us for dates";
+  }
+
+  if (specials.length === 1) {
+    return `${specials[0].checkInNice} to ${specials[0].checkOutNice}`;
+  }
+
+  return specials
+    .slice(0, 3)
+    .map((special) => `${special.checkInNice} to ${special.checkOutNice}`)
+    .join(" • ");
+}
+
+function buildDirectBookingUrl(post) {
+  return (
+    post.directBookingUrl ||
+    `https://oceanvacationsmb.guestybookings.com/en/properties/${post.listingId}`
+  );
 }
 
 async function imageToDataUri(url) {
@@ -79,52 +160,25 @@ async function imageToDataUri(url) {
   }
 }
 
-function getOpenDateRanges(post) {
-  return (post.specials || []).map((special) => ({
-    checkIn: special.checkIn,
-    checkOut: special.checkOut,
-    label: `${special.checkInNice} to ${special.checkOutNice}`
-  }));
-}
+function buildCalendar({ year, monthIndex, scanFrom, scanTo, specials }) {
+  const first = new Date(year, monthIndex, 1);
+  const last = new Date(year, monthIndex + 1, 0);
 
-function getMonthsBetween(scanFrom, scanTo) {
-  const start = new Date(scanFrom + "T00:00:00");
-  const end = new Date(scanTo + "T00:00:00");
+  const startDay = first.getDay();
+  const totalDays = last.getDate();
 
-  const months = [];
-  const current = new Date(start.getFullYear(), start.getMonth(), 1);
-
-  while (current < end && months.length < 2) {
-    months.push({
-      year: current.getFullYear(),
-      monthIndex: current.getMonth()
-    });
-
-    current.setMonth(current.getMonth() + 1);
-  }
-
-  return months;
-}
-
-function buildCalendarSvg({ year, monthIndex, scanFrom, scanTo, openRanges }) {
-  const firstDay = new Date(year, monthIndex, 1);
-  const lastDay = new Date(year, monthIndex + 1, 0);
-  const startWeekday = firstDay.getDay();
-  const totalDays = lastDay.getDate();
-
-  const cellSize = 38;
-  const gap = 5;
-  const x0 = 38;
-  const y0 = 82;
+  const cell = 32;
+  const gap = 4;
+  const startX = 24;
+  const startY = 74;
 
   const days = ["S", "M", "T", "W", "T", "F", "S"];
 
-  const dayHeaders = days
+  const headers = days
     .map((day, index) => {
-      const x = x0 + index * (cellSize + gap) + cellSize / 2;
-
+      const x = startX + index * (cell + gap) + cell / 2;
       return `
-        <text x="${x}" y="62" text-anchor="middle" font-family="Arial" font-size="18" font-weight="800" fill="#12304a">${day}</text>
+        <text x="${x}" y="56" text-anchor="middle" font-family="Arial" font-size="13" font-weight="900" fill="#0b2f4d">${day}</text>
       `;
     })
     .join("");
@@ -132,91 +186,59 @@ function buildCalendarSvg({ year, monthIndex, scanFrom, scanTo, openRanges }) {
   let cells = "";
 
   for (let day = 1; day <= totalDays; day++) {
-    const index = startWeekday + day - 1;
+    const index = startDay + day - 1;
     const row = Math.floor(index / 7);
     const col = index % 7;
 
-    const x = x0 + col * (cellSize + gap);
-    const y = y0 + row * (cellSize + gap);
+    const x = startX + col * (cell + gap);
+    const y = startY + row * (cell + gap);
 
-    const ymd = toYmd(new Date(year, monthIndex, day));
-    const inScan = ymd >= scanFrom && ymd < scanTo;
-
-    const isOpen = openRanges.some((range) =>
-      isDateInRange(ymd, range.checkIn, range.checkOut)
-    );
+    const dateYmd = toYmd(new Date(year, monthIndex, day));
 
     let fill = "#ffffff";
-    let textFill = "#12304a";
-    let stroke = "#d8e3ea";
+    let stroke = "#d4e0e6";
+    let color = "#0b2f4d";
 
-    if (inScan && isOpen) {
-      fill = "#5eaa45";
-      textFill = "#ffffff";
-      stroke = "#5eaa45";
-    }
-
-    if (inScan && !isOpen) {
-      fill = "#e75d4f";
-      textFill = "#ffffff";
-      stroke = "#e75d4f";
+    if (isInsideScan(dateYmd, scanFrom, scanTo)) {
+      if (isDateOpen(dateYmd, specials)) {
+        fill = "#5ca84a";
+        stroke = "#5ca84a";
+        color = "#ffffff";
+      } else {
+        fill = "#e75d4f";
+        stroke = "#e75d4f";
+        color = "#ffffff";
+      }
     }
 
     cells += `
-      <rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" rx="7" fill="${fill}" stroke="${stroke}" stroke-width="1" />
-      <text x="${x + cellSize / 2}" y="${y + 25}" text-anchor="middle" font-family="Arial" font-size="17" font-weight="800" fill="${textFill}">${day}</text>
+      <rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="1" />
+      <text x="${x + cell / 2}" y="${y + 22}" text-anchor="middle" font-family="Arial" font-size="13" font-weight="900" fill="${color}">${day}</text>
     `;
   }
 
   return `
     <g>
-      <rect x="0" y="0" width="350" height="365" rx="18" fill="#ffffff" stroke="#c7d7df" stroke-width="2" />
-      <rect x="0" y="0" width="350" height="42" rx="18" fill="#063457" />
-      <text x="175" y="28" text-anchor="middle" font-family="Arial" font-size="20" font-weight="900" fill="#ffffff">${monthName(year, monthIndex)}</text>
-      ${dayHeaders}
+      <rect x="0" y="0" width="302" height="300" rx="14" fill="#ffffff" stroke="#d1dde4" stroke-width="2" />
+      <rect x="0" y="0" width="302" height="40" rx="14" fill="#063457" />
+      <text x="151" y="26" text-anchor="middle" font-family="Arial" font-size="16" font-weight="900" fill="#ffffff">${monthTitle(year, monthIndex)}</text>
+      ${headers}
       ${cells}
     </g>
   `;
 }
 
-function buildOpenDatesList(openRanges) {
-  const items = openRanges
-    .slice(0, 6)
-    .map((range, index) => {
-      const y = 52 + index * 38;
-
-      return `
-        <g>
-          <circle cx="24" cy="${y - 6}" r="11" fill="#087f8c" />
-          <text x="24" y="${y - 1}" text-anchor="middle" font-family="Arial" font-size="14" font-weight="900" fill="#ffffff">✓</text>
-          <text x="48" y="${y}" font-family="Arial" font-size="22" font-weight="800" fill="#12304a">${safe(range.label)}</text>
-        </g>
-      `;
-    })
-    .join("");
-
-  return `
-    <g>
-      <rect x="0" y="0" width="500" height="300" rx="18" fill="#ffffff" stroke="#c7d7df" stroke-width="2" />
-      <rect x="0" y="0" width="500" height="42" rx="18" fill="#087f8c" />
-      <text x="250" y="28" text-anchor="middle" font-family="Arial" font-size="20" font-weight="900" fill="#ffffff">OPEN DATES</text>
-      ${items}
-      <text x="250" y="278" text-anchor="middle" font-family="Arial" font-size="15" font-style="italic" fill="#5b6f7a">Availability subject to change</text>
-    </g>
-  `;
-}
-
 function buildCaption(post, flyerUrl) {
-  const openingLines = (post.specials || [])
+  const openings = (post.specials || [])
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`)
     .join("\n");
 
-  const directUrl = post.directBookingUrl || "";
+  const directUrl = buildDirectBookingUrl(post);
   const airbnbUrl = post.airbnbUrl || "";
   const vrboUrl = post.vrboUrl || "";
 
-  const airbnbLine = airbnbUrl ? `\nAirbnb:\n${airbnbUrl}` : "";
-  const vrboLine = vrboUrl ? `\nVRBO:\n${vrboUrl}` : "";
+  const airbnbLine = airbnbUrl ? `\nAirbnb:\n${airbnbUrl}\n` : "";
+  const vrboLine = vrboUrl ? `\nVRBO:\n${vrboUrl}\n` : "";
 
   return `LAST MINUTE DEALS
 
@@ -225,7 +247,7 @@ ${post.location}
 ${post.bedrooms}BR • Sleeps ${post.sleeps}
 
 Open dates:
-${openingLines}
+${openings}
 
 Flyer:
 ${flyerUrl}
@@ -236,152 +258,195 @@ ${directUrl}${airbnbLine}${vrboLine}
 oceanvacationsmb.com`;
 }
 
-async function buildFlyerSvg(post, scanFrom, scanTo) {
+async function buildFlyerSvg(post, scan) {
   const heroImage = await imageToDataUri(post.photoUrl);
-  const openRanges = getOpenDateRanges(post);
-  const months = getMonthsBetween(scanFrom, scanTo);
-  const sellingPoints = normalizeSellingPoints(
-    post.sellingPoints,
-    post.bedrooms,
-    post.sleeps
-  );
 
-  const calendarOne = months[0]
-    ? buildCalendarSvg({
+  const months = getMonths(scan.from, scan.to);
+
+  const calendar1 = months[0]
+    ? buildCalendar({
         ...months[0],
-        scanFrom,
-        scanTo,
-        openRanges
+        scanFrom: scan.from,
+        scanTo: scan.to,
+        specials: post.specials || []
       })
     : "";
 
-  const calendarTwo = months[1]
-    ? buildCalendarSvg({
+  const calendar2 = months[1]
+    ? buildCalendar({
         ...months[1],
-        scanFrom,
-        scanTo,
-        openRanges
+        scanFrom: scan.from,
+        scanTo: scan.to,
+        specials: post.specials || []
       })
     : "";
 
-  const propertyType = sellingPoints.join(" • ");
-  const location = post.location || "";
-  const title = post.propertyTitle || "";
+  const area = getAreaTopText(post);
+  const areaName = getAreaName(post);
+  const featureName = getFeatureName(post);
+  const openDateText = getOpenDateText(post);
 
   return `
     <svg width="1122" height="1402" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="ocean" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="#dff7ff"/>
-          <stop offset="55%" stop-color="#ffffff"/>
-          <stop offset="100%" stop-color="#f8ead4"/>
+        <linearGradient id="sand" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#fffdf6"/>
+          <stop offset="52%" stop-color="#fff7ea"/>
+          <stop offset="100%" stop-color="#efe0c5"/>
         </linearGradient>
 
-        <linearGradient id="navy" x1="0" x2="1">
-          <stop offset="0%" stop-color="#062b49"/>
-          <stop offset="100%" stop-color="#0b4b73"/>
+        <linearGradient id="ocean" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#022f4f"/>
+          <stop offset="60%" stop-color="#03566b"/>
+          <stop offset="100%" stop-color="#052b49"/>
+        </linearGradient>
+
+        <linearGradient id="teal" x1="0" x2="1">
+          <stop offset="0%" stop-color="#087f8c"/>
+          <stop offset="100%" stop-color="#0bb4b0"/>
         </linearGradient>
 
         <clipPath id="heroClip">
-          <rect x="0" y="0" width="1122" height="430" rx="0"/>
+          <rect x="0" y="0" width="1122" height="420"/>
         </clipPath>
+
+        <clipPath id="photoCard">
+          <rect x="70" y="855" width="330" height="190" rx="22"/>
+        </clipPath>
+
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#062b49" flood-opacity="0.22"/>
+        </filter>
       </defs>
 
-      <rect width="1122" height="1402" fill="url(#ocean)" />
+      <rect width="1122" height="1402" fill="url(#sand)" />
 
       ${
         heroImage
-          ? `<image href="${heroImage}" x="0" y="0" width="1122" height="470" preserveAspectRatio="xMidYMid slice" clip-path="url(#heroClip)" />`
-          : `<rect x="0" y="0" width="1122" height="470" fill="#8ccfe0" />`
+          ? `<image href="${heroImage}" x="0" y="0" width="1122" height="455" preserveAspectRatio="xMidYMid slice" clip-path="url(#heroClip)" />`
+          : `<rect x="0" y="0" width="1122" height="455" fill="#89d2e3" />`
       }
 
-      <rect x="0" y="350" width="1122" height="1052" fill="rgba(255,255,255,0.93)" />
-      <path d="M0 350 C 250 430, 520 315, 1122 390 L1122 520 L0 520 Z" fill="#ffffff" opacity="0.92"/>
+      <rect x="0" y="0" width="1122" height="420" fill="rgba(0,40,60,0.08)" />
 
-      <g>
-        <path d="M0 0 L185 0 L185 190 L92 150 L0 190 Z" fill="#052b49"/>
-        <text x="92" y="64" text-anchor="middle" font-family="Arial" font-size="19" font-weight="900" fill="#e8c35a">PROPERTY ID</text>
-        <text x="92" y="124" text-anchor="middle" font-family="Arial" font-size="52" font-weight="900" fill="#ffffff">${safe(post.propertyId)}</text>
+      <path d="M0 382 C 230 438, 420 405, 625 382 C 830 357, 1000 385, 1122 350 L1122 595 L0 595 Z" fill="#fff9ed" opacity="0.98"/>
+      <path d="M0 405 C 260 465, 520 418, 760 382 C 925 357, 1038 370, 1122 345" fill="none" stroke="#087f8c" stroke-width="8" opacity="0.72"/>
+
+      <g transform="translate(76 40)">
+        <text x="0" y="0" font-family="Arial" font-size="29" letter-spacing="10" fill="#062b49">${safe(area.top)}</text>
+        <text x="38" y="72" font-family="Brush Script MT, cursive" font-size="84" fill="#087f8c">${safe(area.script)}</text>
+        <line x1="0" y1="98" x2="80" y2="98" stroke="#c9a24b" stroke-width="2"/>
+        <text x="105" y="105" font-family="Arial" font-size="20" letter-spacing="4" fill="#062b49">${safe(area.bottom)}</text>
+        <line x1="405" y1="98" x2="495" y2="98" stroke="#c9a24b" stroke-width="2"/>
       </g>
 
-      <g>
-        <circle cx="875" cy="110" r="86" fill="#ffffff" stroke="#0a3c62" stroke-width="4"/>
-        <text x="875" y="100" text-anchor="middle" font-family="Georgia" font-size="42" font-weight="700" fill="#0a3c62">OCEAN</text>
-        <text x="875" y="132" text-anchor="middle" font-family="Arial" font-size="17" letter-spacing="4" fill="#087f8c">VACATIONS</text>
-        <path d="M815 65 C835 45, 865 45, 885 66 C905 50, 930 58, 943 80" fill="none" stroke="#087f8c" stroke-width="5"/>
+      <g transform="translate(825 48)">
+        <circle cx="100" cy="100" r="92" fill="#052b49" stroke="#c9a24b" stroke-width="4"/>
+        <path d="M48 70 C76 43, 112 46, 142 68 C160 55, 178 58, 194 76" fill="none" stroke="#12b9c2" stroke-width="6"/>
+        <text x="100" y="108" text-anchor="middle" font-family="Georgia" font-size="48" font-weight="900" fill="#ffffff">OCEAN</text>
+        <text x="100" y="150" text-anchor="middle" font-family="Arial" font-size="24" letter-spacing="4" font-weight="800" fill="#12d1d1">VACATIONS</text>
       </g>
 
-      <text x="58" y="545" font-family="Georgia" font-size="88" font-weight="900" fill="#062b49">LAST MINUTE</text>
-      <text x="75" y="645" font-family="Brush Script MT, cursive" font-size="116" fill="#087f8c">DEALS</text>
+      <g transform="translate(150 420)">
+        <text x="0" y="0" font-family="Georgia" font-size="78" fill="#052b49">LAST MINUTE</text>
+        <text x="10" y="116" font-family="Georgia" font-size="145" font-weight="900" fill="#087f8c">DEALS</text>
+        <line x1="180" y1="140" x2="430" y2="140" stroke="#c9a24b" stroke-width="3"/>
+        <text x="305" y="148" text-anchor="middle" font-family="Georgia" font-size="28" fill="#c9a24b">✦</text>
 
-      <rect x="80" y="672" width="510" height="48" rx="0" fill="#087f8c"/>
-      <text x="335" y="704" text-anchor="middle" font-family="Arial" font-size="25" font-weight="900" fill="#ffffff">${safe(post.propertyId)} | ${safe(location)}</text>
+        <rect x="55" y="162" width="520" height="65" rx="30" fill="#052b49" stroke="#c9a24b" stroke-width="3"/>
+        <text x="315" y="205" text-anchor="middle" font-family="Arial" font-size="34" letter-spacing="6" font-weight="900" fill="#ffffff">${safe(post.propertyId)}</text>
 
-      <text x="80" y="770" font-family="Georgia" font-size="42" font-weight="800" fill="#062b49">${safe(title)}</text>
-      <text x="80" y="825" font-family="Arial" font-size="26" font-weight="900" fill="#087f8c">${safe(propertyType)}</text>
-
-      <g transform="translate(80 870)">
-        <circle cx="30" cy="30" r="28" fill="#ffffff" stroke="#062b49" stroke-width="3"/>
-        <text x="30" y="40" text-anchor="middle" font-family="Arial" font-size="22" font-weight="900" fill="#062b49">${safe(post.bedrooms)}</text>
-        <text x="75" y="38" font-family="Arial" font-size="24" font-weight="800" fill="#062b49">Bedrooms</text>
-
-        <circle cx="315" cy="30" r="28" fill="#ffffff" stroke="#062b49" stroke-width="3"/>
-        <text x="315" y="40" text-anchor="middle" font-family="Arial" font-size="22" font-weight="900" fill="#062b49">${safe(post.sleeps)}</text>
-        <text x="360" y="38" font-family="Arial" font-size="24" font-weight="800" fill="#062b49">Sleeps</text>
+        <text x="315" y="270" text-anchor="middle" font-family="Arial" font-size="27" font-weight="900" fill="#062b49">📍 ${safe(post.location)}</text>
       </g>
 
-      <g transform="translate(58 960)">
-        <rect x="0" y="0" width="735" height="42" rx="0" fill="#087f8c"/>
-        <text x="367" y="29" text-anchor="middle" font-family="Arial" font-size="21" font-weight="900" fill="#ffffff">NEXT 30 DAYS AVAILABILITY</text>
+      <g transform="translate(760 405)" filter="url(#shadow)">
+        <circle cx="150" cy="150" r="145" fill="#fff9ed" stroke="#c9a24b" stroke-width="4"/>
+        <text x="150" y="96" text-anchor="middle" font-family="Brush Script MT, cursive" font-size="58" fill="#062b49">Book</text>
+        <text x="150" y="145" text-anchor="middle" font-family="Brush Script MT, cursive" font-size="50" fill="#062b49">direct and</text>
+        <text x="150" y="198" text-anchor="middle" font-family="Arial" font-size="30" font-weight="900" fill="#087f8c">SAVE UP TO</text>
+        <text x="150" y="270" text-anchor="middle" font-family="Georgia" font-size="86" font-weight="900" fill="#087f8c">20%</text>
+      </g>
 
-        <g transform="translate(0 62)">
-          ${calendarOne}
+      <g transform="translate(95 692)">
+        <g>
+          <circle cx="44" cy="44" r="42" fill="#087f8c"/>
+          <text x="44" y="58" text-anchor="middle" font-family="Arial" font-size="34" font-weight="900" fill="#ffffff">🛏</text>
+          <text x="105" y="36" font-family="Georgia" font-size="36" fill="#062b49">${safe(post.bedrooms)}</text>
+          <text x="105" y="68" font-family="Arial" font-size="21" font-weight="900" fill="#062b49">BEDROOMS</text>
         </g>
 
-        <g transform="translate(375 62)">
-          ${calendarTwo}
+        <line x1="318" y1="8" x2="318" y2="84" stroke="#b7c5cc" stroke-width="2"/>
+
+        <g transform="translate(365 0)">
+          <circle cx="44" cy="44" r="42" fill="#087f8c"/>
+          <text x="44" y="57" text-anchor="middle" font-family="Arial" font-size="34" font-weight="900" fill="#ffffff">👥</text>
+          <text x="105" y="36" font-family="Georgia" font-size="36" fill="#062b49">${safe(post.sleeps)}</text>
+          <text x="105" y="68" font-family="Arial" font-size="21" font-weight="900" fill="#062b49">SLEEPS</text>
         </g>
 
-        <g transform="translate(0 438)">
-          <rect x="190" y="0" width="24" height="24" rx="5" fill="#5eaa45"/>
-          <text x="225" y="20" font-family="Arial" font-size="19" font-weight="800" fill="#12304a">OPEN</text>
+        <line x1="666" y1="8" x2="666" y2="84" stroke="#b7c5cc" stroke-width="2"/>
 
-          <rect x="335" y="0" width="24" height="24" rx="5" fill="#e75d4f"/>
-          <text x="370" y="20" font-family="Arial" font-size="19" font-weight="800" fill="#12304a">BOOKED</text>
+        <g transform="translate(710 0)">
+          <circle cx="44" cy="44" r="42" fill="#087f8c"/>
+          <text x="44" y="57" text-anchor="middle" font-family="Arial" font-size="32" font-weight="900" fill="#ffffff">🌊</text>
+          <text x="105" y="36" font-family="Arial" font-size="23" font-weight="900" fill="#062b49">${safe(featureName.toUpperCase())}</text>
+          <text x="105" y="68" font-family="Arial" font-size="20" font-weight="900" fill="#062b49">${safe(areaName.toUpperCase())}</text>
         </g>
       </g>
 
-      <g transform="translate(735 960)">
-        ${buildOpenDatesList(openRanges)}
+      <rect x="0" y="805" width="1122" height="597" fill="url(#ocean)"/>
+      <path d="M0 805 C 225 748, 425 835, 650 795 C 850 760, 990 772, 1122 725 L1122 845 L0 845 Z" fill="#fff9ed"/>
+
+      <g transform="translate(80 855)" filter="url(#shadow)">
+        <rect x="0" y="0" width="330" height="190" rx="22" fill="#ffffff" stroke="#d9e5ea" stroke-width="2"/>
+        <circle cx="165" cy="0" r="30" fill="#c9a24b"/>
+        <text x="165" y="10" text-anchor="middle" font-family="Arial" font-size="26" fill="#ffffff">📅</text>
+        <text x="165" y="72" text-anchor="middle" font-family="Arial" font-size="25" font-weight="900" fill="#087f8c">OPEN DATES</text>
+        <text x="165" y="116" text-anchor="middle" font-family="Georgia" font-size="31" font-weight="900" fill="#062b49">${safe(openDateText)}</text>
+        <path d="M0 145 C 85 115, 170 170, 330 135 L330 190 L0 190 Z" fill="#dff4f8"/>
       </g>
 
-      <g transform="translate(710 660)">
-        <text x="0" y="0" font-family="Brush Script MT, cursive" font-size="70" fill="#062b49">Book direct and</text>
-        <text x="10" y="70" font-family="Arial" font-size="35" font-weight="900" fill="#062b49">SAVE UP TO</text>
-        <text x="190" y="170" font-family="Arial" font-size="112" font-weight="900" fill="#087f8c">20%</text>
+      <g transform="translate(438 850)">
+        ${calendar1}
       </g>
 
-      <path d="M0 1285 C 210 1240, 385 1315, 610 1275 C 835 1235, 980 1260, 1122 1215 L1122 1402 L0 1402 Z" fill="url(#navy)"/>
-
-      <text x="561" y="1328" text-anchor="middle" font-family="Arial" font-size="32" font-weight="900" fill="#ffffff">oceanvacationsmb.com</text>
-      <text x="561" y="1365" text-anchor="middle" font-family="Arial" font-size="18" font-style="italic" fill="#d7edf2">Availability subject to change • Links in caption</text>
-
-      <g transform="translate(95 1230)">
-        <rect x="0" y="0" width="255" height="54" rx="14" fill="#062b49"/>
-        <text x="127" y="35" text-anchor="middle" font-family="Arial" font-size="21" font-weight="900" fill="#ffffff">DIRECT BOOKING</text>
-
-        <rect x="395" y="0" width="210" height="54" rx="14" fill="#062b49"/>
-        <text x="500" y="35" text-anchor="middle" font-family="Arial" font-size="21" font-weight="900" fill="#ffffff">AIRBNB</text>
-
-        <rect x="650" y="0" width="190" height="54" rx="14" fill="#062b49"/>
-        <text x="745" y="35" text-anchor="middle" font-family="Arial" font-size="21" font-weight="900" fill="#ffffff">VRBO</text>
+      <g transform="translate(760 850)">
+        ${calendar2}
       </g>
+
+      <g transform="translate(560 1194)">
+        <circle cx="0" cy="0" r="11" fill="#5ca84a"/>
+        <text x="22" y="7" font-family="Arial" font-size="20" font-weight="900" fill="#ffffff">OPEN</text>
+
+        <circle cx="135" cy="0" r="11" fill="#e75d4f"/>
+        <text x="157" y="7" font-family="Arial" font-size="20" font-weight="900" fill="#ffffff">BOOKED</text>
+      </g>
+
+      <g transform="translate(82 1220)">
+        <rect x="0" y="0" width="300" height="64" rx="32" fill="#052b49" stroke="#c9a24b" stroke-width="3"/>
+        <circle cx="48" cy="32" r="25" fill="#c9a24b"/>
+        <text x="48" y="41" text-anchor="middle" font-family="Arial" font-size="26" fill="#ffffff">🌐</text>
+        <text x="178" y="40" text-anchor="middle" font-family="Arial" font-size="24" font-weight="900" fill="#ffffff">DIRECT BOOKING</text>
+
+        <rect x="410" y="0" width="270" height="64" rx="32" fill="#052b49" stroke="#c9a24b" stroke-width="3"/>
+        <circle cx="458" cy="32" r="25" fill="#e75d4f"/>
+        <text x="458" y="43" text-anchor="middle" font-family="Arial" font-size="27" font-weight="900" fill="#ffffff">A</text>
+        <text x="550" y="40" text-anchor="middle" font-family="Arial" font-size="24" font-weight="900" fill="#ffffff">AIRBNB</text>
+
+        <rect x="760" y="0" width="245" height="64" rx="32" fill="#052b49" stroke="#c9a24b" stroke-width="3"/>
+        <circle cx="808" cy="32" r="25" fill="#2a77e8"/>
+        <text x="808" y="42" text-anchor="middle" font-family="Arial" font-size="26" fill="#ffffff">⌂</text>
+        <text x="895" y="40" text-anchor="middle" font-family="Arial" font-size="24" font-weight="900" fill="#ffffff">VRBO</text>
+      </g>
+
+      <text x="561" y="1343" text-anchor="middle" font-family="Georgia" font-size="36" font-weight="900" letter-spacing="4" fill="#ffffff">oceanvacationsmb.com</text>
+      <text x="561" y="1378" text-anchor="middle" font-family="Arial" font-size="19" fill="#7fe4e8">Availability subject to change</text>
     </svg>
   `;
 }
 
 export async function generateAndUploadFlyer(post, scan) {
-  const svg = await buildFlyerSvg(post, scan.from, scan.to);
+  const svg = await buildFlyerSvg(post, scan);
 
   const cleanId = String(post.propertyId || post.listingId || "property")
     .replace(/[^a-zA-Z0-9-_]/g, "-")
@@ -393,7 +458,7 @@ export async function generateAndUploadFlyer(post, scan) {
 
   await sharp(Buffer.from(svg))
     .jpeg({
-      quality: 94
+      quality: 95
     })
     .toFile(filePath);
 
