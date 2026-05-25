@@ -181,6 +181,173 @@ app.get("/api/specials/generate", async (req, res) => {
   }
 });
 
+app.get("/specials", async (req, res) => {
+  try {
+    const result = await generateSpecials();
+
+    const cards = result.specials
+      .map((special) => {
+        if (!special.ok) {
+          return `
+            <div class="card error">
+              <h2>${special.propertyId}</h2>
+              <p>Could not create special for ${special.checkIn} to ${special.checkOut}</p>
+              <p>${special.error || ""}</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="card">
+            <div class="badge">${special.promoType}</div>
+            <h2>${special.propertyTitle}</h2>
+            <p class="location">${special.location}</p>
+
+            <div class="dates">
+              ${special.checkInNice} to ${special.checkOutNice}
+            </div>
+
+            <p>${special.nights} nights • ${special.bedrooms}BR • Sleeps ${special.sleeps}</p>
+            <p>${special.sellingPoints.join(" • ")}</p>
+
+            <div class="price-box">
+              <p>Regular Total: <strong>${special.regularTotalFormatted}</strong></p>
+              <p>Discount: <strong>${special.discountPercent}% off</strong></p>
+              <p class="special-price">Special Direct Price: <strong>${special.specialTotalFormatted}</strong></p>
+            </div>
+
+            <textarea readonly>${special.facebookText}</textarea>
+
+            <button onclick="copyText(this)">Copy Facebook Text</button>
+          </div>
+        `;
+      })
+      .join("");
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Ocean Specials</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              background: #f4f7f8;
+              margin: 0;
+              padding: 30px;
+              color: #123;
+            }
+
+            h1 {
+              margin-bottom: 5px;
+            }
+
+            .sub {
+              color: #567;
+              margin-bottom: 25px;
+            }
+
+            .card {
+              background: white;
+              border-radius: 16px;
+              padding: 24px;
+              max-width: 760px;
+              margin-bottom: 24px;
+              box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+              border: 1px solid #e6eef2;
+            }
+
+            .badge {
+              display: inline-block;
+              background: #007f8f;
+              color: white;
+              padding: 8px 14px;
+              border-radius: 999px;
+              font-weight: bold;
+              margin-bottom: 12px;
+            }
+
+            .location {
+              color: #567;
+              margin-top: -8px;
+            }
+
+            .dates {
+              font-size: 28px;
+              font-weight: bold;
+              color: #082b45;
+              margin: 18px 0;
+            }
+
+            .price-box {
+              background: #eef8f9;
+              padding: 16px;
+              border-radius: 12px;
+              margin: 18px 0;
+            }
+
+            .special-price {
+              font-size: 22px;
+              color: #007f8f;
+            }
+
+            textarea {
+              width: 100%;
+              height: 260px;
+              border: 1px solid #ccd;
+              border-radius: 12px;
+              padding: 14px;
+              font-size: 15px;
+              box-sizing: border-box;
+              margin-top: 10px;
+            }
+
+            button {
+              margin-top: 12px;
+              background: #082b45;
+              color: white;
+              border: none;
+              padding: 14px 18px;
+              border-radius: 10px;
+              font-size: 16px;
+              cursor: pointer;
+            }
+
+            .error {
+              border-color: #f0b4b4;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Ocean Vacations Specials</h1>
+          <div class="sub">
+            Generated from Guesty availability and pricing.
+          </div>
+
+          ${cards || "<p>No specials found right now.</p>"}
+
+          <script>
+            function copyText(button) {
+              const textarea = button.previousElementSibling;
+              textarea.select();
+              document.execCommand("copy");
+              button.innerText = "Copied";
+              setTimeout(() => button.innerText = "Copy Facebook Text", 1500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    res.status(500).send(`
+      <h1>Error</h1>
+      <p>${error.message}</p>
+      <pre>${JSON.stringify(error.response?.data || {}, null, 2)}</pre>
+    `);
+  }
+});
+
 const port = process.env.PORT || 10000;
 
 app.listen(port, () => {
