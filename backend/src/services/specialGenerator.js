@@ -149,7 +149,7 @@ function createOpeningText(special) {
   return createExactOpeningText(special);
 }
 
-function createPropertyPost(property, specials) {
+function createPropertyPost(property, specials, scanLabel) {
   const separator =
     "\n________________________________________________________________________________\n\n";
 
@@ -159,7 +159,7 @@ function createPropertyPost(property, specials) {
 
   return `${property.sellingPoints.join(" • ")} in ${property.location}
 
-*****LAST MINUTE DEALS • NEXT 30 DAYS*****
+*****${scanLabel}*****
 
 ${openingsText}
 
@@ -190,26 +190,24 @@ function convertManagedProperty(property) {
 
     minNights: 1,
     maxNights: 30,
-    scanDays: Number(property.scanDays ?? 30),
+    scanDays: Number(property.scanDays ?? 15),
 
     active: property.active === true
   };
 }
 
-async function scanProperty(property, todayYmd) {
-  const scanDays = Number(property.scanDays || 30);
-  const scanEndYmd = toYmd(addDays(new Date(todayYmd + "T00:00:00"), scanDays));
-
+async function scanProperty(property, scanFromYmd, scanToYmd, scanLabel) {
   const calendar = await getListingCalendar(
     property.listingId,
-    todayYmd,
-    scanEndYmd
+    scanFromYmd,
+    scanToYmd
   );
 
-  const gaps = findAvailableGaps(calendar, 1, scanDays);
+  const maxScanNights = Math.max(1, diffDays(scanFromYmd, scanToYmd));
+  const gaps = findAvailableGaps(calendar, 1, maxScanNights);
 
   const specials = gaps.map((gap) => {
-    const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
+    const daysUntilCheckIn = diffDays(scanFromYmd, gap.checkIn);
     const datedLinks = buildDatedLinks(property, gap.checkIn, gap.checkOut);
 
     return {
@@ -256,7 +254,11 @@ async function scanProperty(property, todayYmd) {
           openingsCount: specials.length,
           firstCheckInNice: specials[0].checkInNice,
           lastCheckOutNice: specials[specials.length - 1].checkOutNice,
-          facebookText: createPropertyPost(property, specials),
+          facebookText: createPropertyPost(property, specials, scanLabel),
+          directBookingUrl: property.directBookingUrl || "",
+          airbnbUrl: property.airbnbUrl || "",
+          vrboUrl: property.vrboUrl || "",
+          photoUrl: property.photoUrl || "",
           specials
         }
       : null;
@@ -264,17 +266,22 @@ async function scanProperty(property, todayYmd) {
   return {
     propertyId: property.id,
     propertyTitle: property.title,
-    scanFrom: todayYmd,
-    scanTo: scanEndYmd,
+    listingId: property.listingId,
+    scanFrom: scanFromYmd,
+    scanTo: scanToYmd,
     gapsFound: gaps.length,
     specials,
     propertyPost
   };
 }
 
-export async function generateSpecials(selectedPropertyIds = []) {
+export async function generateSpecials(selectedPropertyIds = [], options = {}) {
   const today = new Date();
   const todayYmd = toYmd(today);
+
+  const scanFromYmd = options.scanFrom || todayYmd;
+  const scanToYmd = options.scanTo || toYmd(addDays(today, 15));
+  const scanLabel = options.scanLabel || "LAST MINUTE DEALS";
 
   const managedProperties = await getManagedProperties();
 
@@ -299,7 +306,12 @@ export async function generateSpecials(selectedPropertyIds = []) {
 
   for (const property of activeProperties) {
     try {
-      const result = await scanProperty(property, todayYmd);
+      const result = await scanProperty(
+        property,
+        scanFromYmd,
+        scanToYmd,
+        scanLabel
+      );
 
       propertyResults.push(result);
       allSpecials.push(...result.specials);
@@ -323,7 +335,9 @@ export async function generateSpecials(selectedPropertyIds = []) {
   return {
     ok: true,
     scan: {
-      from: todayYmd,
+      from: scanFromYmd,
+      to: scanToYmd,
+      label: scanLabel,
       propertiesScanned: activeProperties.length,
       specialsCreated: allSpecials.length,
       propertyPostsCreated: propertyPosts.length
