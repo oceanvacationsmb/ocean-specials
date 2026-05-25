@@ -1,7 +1,7 @@
 export const properties = [
   {
     id: "827B",
-    title: "6BR Murrells Inlet Home",
+    title: "6BR Sleeps 18 | PVT Pool | Walk to Beach | 827",
     listingId: "68db1a3f34efe70012fd1284",
     bedrooms: 6,
     sleeps: 18,
@@ -16,19 +16,3 @@ export const properties = [
     active: true
   }
 ];
-{
-  id: "NEXT_PROPERTY",
-  title: "Property Title",
-  listingId: "Guesty listing id",
-  bedrooms: 0,
-  sleeps: 0,
-  location: "Myrtle Beach",
-  sellingPoints: ["Pool", "Ocean View", "Walk to Beach"],
-  photoUrl: "image link",
-  directBookingUrl: "booking link",
-  airbnbReviewUrl: "",
-  minNights: 2,
-  maxNights: 7,
-  scanDays: 30,
-  active: true
-}
