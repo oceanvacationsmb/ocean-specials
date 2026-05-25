@@ -15,6 +15,7 @@ function toYmd(date) {
 function diffDays(startYmd, endYmd) {
   const start = new Date(startYmd + "T00:00:00");
   const end = new Date(endYmd + "T00:00:00");
+
   return Math.round((end - start) / (1000 * 60 * 60 * 24));
 }
 
