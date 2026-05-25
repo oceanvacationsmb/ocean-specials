@@ -11,6 +11,7 @@ import {
 import { findAvailableGaps } from "./services/gapFinder.js";
 import { getTotalFromQuote, applyDiscount } from "./services/priceHelper.js";
 import { generateSpecials } from "./services/specialGenerator.js";
+import { generateAndUploadFlyer } from "./services/flyerGenerator.js";
 
 import {
   getManagedProperties,
@@ -729,6 +730,41 @@ app.get("/api/specials/price-test", async (req, res) => {
   }
 });
 
+app.post("/api/flyer/generate", async (req, res) => {
+  try {
+    const { listingId } = req.body;
+
+    if (!listingId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing listingId"
+      });
+    }
+
+    const scanOptions = getScanOptions(req);
+    const result = await generateSpecials([listingId], scanOptions);
+
+    const post = result.propertyPosts[0];
+
+    if (!post) {
+      return res.status(404).json({
+        ok: false,
+        error: "No specials found for this property in the selected scan window"
+      });
+    }
+
+    const flyer = await generateAndUploadFlyer(post, result.scan);
+
+    res.json(flyer);
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
 app.get("/api/specials/generate", async (req, res) => {
   try {
     const scanOptions = getScanOptions(req);
@@ -794,9 +830,12 @@ app.get("/specials", async (req, res) => {
             <textarea readonly>${safe(post.facebookText)}</textarea>
 
             <div class="button-row">
+              <button onclick="generateFlyer(this, '${safe(post.listingId)}')">Generate Flyer</button>
               <button onclick="copyText(this)">Copy Full Post</button>
               ${groupButtons}
             </div>
+
+            <div class="flyer-result"></div>
           </div>
         `;
       })
@@ -974,8 +1013,39 @@ app.get("/specials", async (req, res) => {
               opacity: 0.92;
             }
 
+            button:disabled {
+              opacity: 0.6;
+              cursor: not-allowed;
+            }
+
             .group-button {
               background: #1877f2;
+            }
+
+            .flyer-result {
+              margin-top: 10px;
+              display: none;
+              border-top: 1px solid #e1e8ed;
+              padding-top: 10px;
+            }
+
+            .flyer-result.open {
+              display: block;
+            }
+
+            .flyer-result textarea {
+              display: block;
+              height: 260px;
+              margin-top: 8px;
+            }
+
+            .flyer-link {
+              display: block;
+              color: #007f8f;
+              font-size: 13px;
+              font-weight: 800;
+              margin-top: 8px;
+              word-break: break-all;
             }
 
             .empty {
@@ -1019,7 +1089,7 @@ app.get("/specials", async (req, res) => {
           <div class="header">
             <h1>Ocean Vacations Specials</h1>
             <div class="sub">
-              One card per property. Copy once, paste once.
+              One card per property. Generate flyer, copy caption, post to Facebook.
             </div>
 
             <div class="nav">
@@ -1104,6 +1174,72 @@ app.get("/specials", async (req, res) => {
 
               setTimeout(() => {
                 button.innerText = "Copy + Open Group";
+              }, 1500);
+            }
+
+            async function generateFlyer(button, listingId) {
+              const card = button.closest(".card");
+              const resultBox = card.querySelector(".flyer-result");
+
+              button.disabled = true;
+              button.innerText = "Generating...";
+
+              resultBox.classList.remove("open");
+              resultBox.innerHTML = "";
+
+              try {
+                const params = new URLSearchParams(window.location.search);
+
+                const response = await fetch("/api/flyer/generate?" + params.toString(), {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    listingId
+                  })
+                });
+
+                const result = await response.json();
+
+                if (!result.ok) {
+                  throw new Error(result.error || "Could not generate flyer");
+                }
+
+                const safeCaption = result.caption
+                  .replaceAll("&", "&amp;")
+                  .replaceAll("<", "&lt;")
+                  .replaceAll(">", "&gt;");
+
+                resultBox.classList.add("open");
+                resultBox.innerHTML =
+                  '<a class="flyer-link" href="' + result.flyerUrl + '" target="_blank">Open Flyer JPG</a>' +
+                  '<textarea readonly>' + safeCaption + '</textarea>' +
+                  '<button onclick="copyFlyerCaption(this)">Copy Flyer Post</button>';
+
+                button.innerText = "Flyer Ready";
+              } catch (error) {
+                resultBox.classList.add("open");
+                resultBox.innerHTML =
+                  '<div class="small" style="color:#b00020;font-weight:800;">' +
+                  error.message +
+                  '</div>';
+
+                button.innerText = "Generate Flyer";
+              }
+
+              button.disabled = false;
+            }
+
+            function copyFlyerCaption(button) {
+              const textarea = button.previousElementSibling;
+              textarea.select();
+              textarea.setSelectionRange(0, 999999);
+              document.execCommand("copy");
+
+              button.innerText = "Copied";
+              setTimeout(() => {
+                button.innerText = "Copy Flyer Post";
               }, 1500);
             }
           </script>
