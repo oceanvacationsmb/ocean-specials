@@ -37,11 +37,3 @@ export async function uploadFlyerToCloudinary(filePath, publicId) {
     url: result.secure_url
   };
 }
-
-export async function deleteFlyerFromCloudinary(publicId) {
-  configureCloudinary();
-
-  return cloudinary.uploader.destroy(publicId, {
-    resource_type: "image"
-  });
-}
