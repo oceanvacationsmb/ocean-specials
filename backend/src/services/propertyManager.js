@@ -74,7 +74,7 @@ function getTitle(listing) {
 }
 
 function buildDefaultShortId(title, listingId) {
-  const match = String(title).match(/\b\d{3,4}[A-Z]?\b/i);
+  const match = String(title).match(/\b\d{3,4}[A-Z]?(?:-\d+)?\b/i);
 
   if (match) {
     return match[0].toUpperCase();
@@ -117,16 +117,16 @@ export async function getManagedProperties() {
       sleeps: getSleeps(listing),
       picture: getPicture(listing),
 
-      active: saved.active === true,
+      active: saved.active !== false,
 
       sellingPoints: saved.sellingPoints || "",
       directBookingUrl: saved.directBookingUrl || "",
       airbnbUrl: saved.airbnbUrl || "",
       vrboUrl: saved.vrboUrl || "",
 
-      minNights: saved.minNights || 2,
-      maxNights: saved.maxNights || 7,
-      scanDays: saved.scanDays || 30
+      minNights: Number(saved.minNights ?? 1),
+      maxNights: Number(saved.maxNights ?? 30),
+      scanDays: Number(saved.scanDays ?? 30)
     };
   });
 }
@@ -138,16 +138,16 @@ export async function saveManagedProperty(listingId, data) {
     ...(config[listingId] || {}),
 
     shortId: data.shortId || "",
-    active: data.active === true,
+    active: data.active !== false,
 
     sellingPoints: data.sellingPoints || "",
     directBookingUrl: data.directBookingUrl || "",
     airbnbUrl: data.airbnbUrl || "",
     vrboUrl: data.vrboUrl || "",
 
-    minNights: Number(data.minNights || 2),
-    maxNights: Number(data.maxNights || 7),
-    scanDays: Number(data.scanDays || 30)
+    minNights: Number(data.minNights ?? 1),
+    maxNights: Number(data.maxNights ?? 30),
+    scanDays: Number(data.scanDays ?? 30)
   };
 
   await savePropertyConfig(config);
