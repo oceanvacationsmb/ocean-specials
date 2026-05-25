@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { testGuestyConnection, getListingCalendar } from "./services/guestyApi.js";
+import { findAvailableGaps } from "./services/gapFinder.js";
 
 const app = express();
 
@@ -48,6 +49,33 @@ app.get("/api/guesty/calendar-test", async (req, res) => {
       ok: true,
       listingId,
       result
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
+app.get("/api/specials/gaps-test", async (req, res) => {
+  try {
+    const listingId = "68db1a3f34efe70012fd1284";
+
+    const calendar = await getListingCalendar(
+      listingId,
+      "2026-05-25",
+      "2026-06-25"
+    );
+
+    const gaps = findAvailableGaps(calendar, 2, 7);
+
+    res.json({
+      ok: true,
+      listingId,
+      count: gaps.length,
+      gaps
     });
   } catch (error) {
     res.status(500).json({
