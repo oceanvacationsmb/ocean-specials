@@ -43,17 +43,81 @@ function getHeadline(daysUntilCheckIn) {
   return "DIRECT BOOKING SPECIAL";
 }
 
+function addOrUpdateParams(url, params) {
+  if (!url) return "";
+
+  const cleanUrl = url.trim();
+  const parsedUrl = new URL(cleanUrl);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      parsedUrl.searchParams.set(key, String(value));
+    }
+  });
+
+  return parsedUrl.toString();
+}
+
+function buildDatedLinks(property, checkIn, checkOut) {
+  const maxGuests = Number(property.sleeps || 1);
+  const airbnbGuests = Math.min(maxGuests, 16);
+  const googleGuests = Math.min(maxGuests, 10);
+
+  const directDateUrl = property.directBookingUrl
+    ? addOrUpdateParams(property.directBookingUrl, {
+        checkIn,
+        checkOut,
+        guests: maxGuests,
+        adults: maxGuests
+      })
+    : "";
+
+  const airbnbDateUrl = property.airbnbUrl
+    ? addOrUpdateParams(property.airbnbUrl, {
+        check_in: checkIn,
+        check_out: checkOut,
+        adults: airbnbGuests
+      })
+    : "";
+
+  const vrboDateUrl = property.vrboUrl
+    ? addOrUpdateParams(property.vrboUrl, {
+        arrival: checkIn,
+        departure: checkOut,
+        adultsCount: maxGuests
+      })
+    : "";
+
+  const googleDateUrl = property.googleUrl
+    ? addOrUpdateParams(property.googleUrl, {
+        checkin: checkIn,
+        checkout: checkOut,
+        adults: googleGuests
+      })
+    : "";
+
+  return {
+    directDateUrl,
+    airbnbDateUrl,
+    vrboDateUrl,
+    googleDateUrl,
+    maxGuests,
+    airbnbGuests,
+    googleGuests
+  };
+}
+
 function createFacebookText(special) {
-  const airbnbLine = special.airbnbUrl
-    ? `\nAirbnb listing:\n${special.airbnbUrl}\n`
+  const airbnbLine = special.airbnbDateUrl
+    ? `\nAirbnb listing with dates:\n${special.airbnbDateUrl}\n`
     : "";
 
-  const vrboLine = special.vrboUrl
-    ? `\nVRBO listing:\n${special.vrboUrl}\n`
+  const vrboLine = special.vrboDateUrl
+    ? `\nVRBO listing with dates:\n${special.vrboDateUrl}\n`
     : "";
 
-  const googleLine = special.googleUrl
-    ? `\nGoogle listing:\n${special.googleUrl}\n`
+  const googleLine = special.googleDateUrl
+    ? `\nGoogle listing with dates:\n${special.googleDateUrl}\n`
     : "";
 
   return `${special.promoType} in ${special.location}
@@ -69,8 +133,8 @@ Book direct and save up to 20%.
 Message us for the direct booking special and availability link.
 
 ${airbnbLine}${vrboLine}${googleLine}
-Book direct:
-${special.directBookingUrl}
+Book direct and save:
+${special.directDateUrl || special.directBookingUrl}
 
 Ocean Vacations
 Call or text: 843-222-9751
@@ -95,6 +159,8 @@ async function scanProperty(property, todayYmd) {
 
   const specials = gaps.map((gap) => {
     const daysUntilCheckIn = diffDays(todayYmd, gap.checkIn);
+
+    const datedLinks = buildDatedLinks(property, gap.checkIn, gap.checkOut);
 
     const special = {
       ok: true,
@@ -126,7 +192,16 @@ async function scanProperty(property, todayYmd) {
       directBookingUrl: property.directBookingUrl || "",
       airbnbUrl: property.airbnbUrl || "",
       vrboUrl: property.vrboUrl || "",
-      googleUrl: property.googleUrl || ""
+      googleUrl: property.googleUrl || "",
+
+      directDateUrl: datedLinks.directDateUrl,
+      airbnbDateUrl: datedLinks.airbnbDateUrl,
+      vrboDateUrl: datedLinks.vrboDateUrl,
+      googleDateUrl: datedLinks.googleDateUrl,
+
+      maxGuests: datedLinks.maxGuests,
+      airbnbGuests: datedLinks.airbnbGuests,
+      googleGuests: datedLinks.googleGuests
     };
 
     special.facebookText = createFacebookText(special);
