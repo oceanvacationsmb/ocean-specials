@@ -50,8 +50,7 @@ function addOrUpdateParams(url, params) {
   if (!url) return "";
 
   try {
-    const cleanUrl = url.trim();
-    const parsedUrl = new URL(cleanUrl);
+    const parsedUrl = new URL(url.trim());
 
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") {
@@ -96,9 +95,7 @@ function buildDatedLinks(property, checkIn, checkOut) {
   return {
     directDateUrl,
     airbnbDateUrl,
-    vrboDateUrl,
-    maxGuests,
-    airbnbGuests
+    vrboDateUrl
   };
 }
 
@@ -162,7 +159,7 @@ function createPropertyPost(property, specials) {
 
   return `${property.sellingPoints.join(" • ")} in ${property.location}
 
-*****OPEN AVAILABILITY SPECIALS*****
+*****LAST MINUTE DEALS • NEXT 30 DAYS*****
 
 ${openingsText}
 
@@ -191,16 +188,16 @@ function convertManagedProperty(property) {
     airbnbUrl: property.airbnbUrl || "",
     vrboUrl: property.vrboUrl || "",
 
-    minNights: Number(property.minNights || 1),
-    maxNights: Number(property.maxNights || 30),
-    scanDays: Number(property.scanDays || 30),
+    minNights: 1,
+    maxNights: 30,
+    scanDays: Number(property.scanDays ?? 30),
 
     active: property.active === true
   };
 }
 
 async function scanProperty(property, todayYmd) {
-  const scanDays = property.scanDays || 30;
+  const scanDays = Number(property.scanDays || 30);
   const scanEndYmd = toYmd(addDays(new Date(todayYmd + "T00:00:00"), scanDays));
 
   const calendar = await getListingCalendar(
@@ -217,7 +214,6 @@ async function scanProperty(property, todayYmd) {
 
     return {
       ok: true,
-
       propertyId: property.id,
       propertyTitle: property.title,
       listingId: property.listingId,
@@ -242,10 +238,7 @@ async function scanProperty(property, todayYmd) {
 
       directDateUrl: datedLinks.directDateUrl,
       airbnbDateUrl: datedLinks.airbnbDateUrl,
-      vrboDateUrl: datedLinks.vrboDateUrl,
-
-      maxGuests: datedLinks.maxGuests,
-      airbnbGuests: datedLinks.airbnbGuests
+      vrboDateUrl: datedLinks.vrboDateUrl
     };
   });
 
