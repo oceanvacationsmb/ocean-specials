@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { testGuestyConnection, getListingCalendar } from "./services/guestyApi.js";
+import { testGuestyConnection, getListingCalendar, createReservationQuote } from "./services/guestyApi.js";
 import { findAvailableGaps } from "./services/gapFinder.js";
 
 const app = express();
@@ -76,6 +76,34 @@ app.get("/api/specials/gaps-test", async (req, res) => {
       listingId,
       count: gaps.length,
       gaps
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
+app.get("/api/guesty/quote-test", async (req, res) => {
+  try {
+    const listingId = "68db1a3f34efe70012fd1284";
+
+    const quote = await createReservationQuote({
+      listingId,
+      checkInDateLocalized: "2026-05-26",
+      checkOutDateLocalized: "2026-05-28",
+      guestsCount: 18
+    });
+
+    res.json({
+      ok: true,
+      listingId,
+      checkIn: "2026-05-26",
+      checkOut: "2026-05-28",
+      guestsCount: 18,
+      quote
     });
   } catch (error) {
     res.status(500).json({
