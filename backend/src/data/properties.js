@@ -8,8 +8,11 @@ export const properties = [
     location: "Murrells Inlet",
     sellingPoints: ["Private Pool", "Walk to Beach", "Sleeps 18"],
     photoUrl: "https://assets.guesty.com/image/upload/v1777300444/production/68d5ff6bea1895d9005ea411/r2kpgabkalhiqka5rrzh.jpg",
+
     directBookingUrl: "https://oceanvacationsmb.guestybookings.com/en/properties/68db1a3f34efe70012fd1284",
-    airbnbReviewUrl: "",
+    airbnbUrl: "https://www.airbnb.com/rooms/1260179399362214063",
+    vrboUrl: "https://www.vrbo.com/3010920?dateless=true",
+
     minNights: 2,
     maxNights: 7,
     scanDays: 30,
