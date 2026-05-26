@@ -74,7 +74,7 @@ function buildCalendarSummary(post, scan) {
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`)
     .join(", ");
 
-  return `Show up to two small monthly calendars for ${monthList}. Highlight open dates in green and booked dates in red. The open date windows are: ${ranges}. The scan period starts ${scan.from} and ends ${scan.to}.`;
+  return `Show up to two small monthly calendars for ${monthList}. Highlight open dates in green and booked dates in red. Open date windows: ${ranges}. Scan period: ${scan.from} to ${scan.to}.`;
 }
 
 async function downloadAndConvertReferenceImage(url) {
@@ -112,27 +112,27 @@ Create a premium professional vertical vacation rental flyer for Ocean Vacations
 
 Use the provided property photo as the main visual reference.
 
-Important photo instructions:
+IMPORTANT:
+Make this look like a luxury coastal vacation rental ad, not a basic template.
 Use one large beautiful hero image.
-Do not make the property image tiny.
-Do not make a busy collage.
+Do not make the image tiny.
+Do not use a busy 4-photo collage.
 Do not awkwardly crop the property.
 Show the property image large and blended nicely into the flyer.
 If the image does not fill the space, use a soft blurred background version of the same image behind it.
-Make the flyer look like a high end beach rental advertisement.
 
-Style:
-Luxury coastal vacation rental flyer
-Premium real estate marketing style
-Elegant typography
-Navy, teal, cream, white, and gold colors
-Clean spacing
-No clutter
-No overlapping text
-Facebook ready
-Professional designer look
+STYLE:
+Premium beach rental flyer.
+Luxury real estate marketing style.
+Clean, polished, coastal, modern.
+Navy, teal, cream, white, and gold accents.
+Elegant typography.
+No clutter.
+No overlapping text.
+Balanced layout.
+Facebook ready.
 
-Required flyer text:
+TEXT TO INCLUDE:
 LAST MINUTE DEALS
 
 LAST MINUTE DEALS IN "${post.location || ""}"
@@ -156,20 +156,22 @@ oceanvacationsmb.com
 
 Availability subject to change
 
-Calendar requirement:
+CALENDAR:
 ${calendarSummary}
 
-Important:
+RULES:
 Keep the property title exactly as given.
-Do not replace the property title with the short ID.
-Do not use nickname text like NMB - 3104-3 as the title.
-The short property ID may be used only as a small badge.
-Make the design beautiful, polished, premium, and balanced.
+Do not replace the title with the short ID.
+The short property ID can be used only as a small badge.
+Do not put long URLs inside the flyer.
+Make the flyer beautiful, premium, and balanced.
 `;
 }
 
 export async function createAiFlyer(post, scan) {
   console.log("STARTING OPENAI IMAGE FLYER");
+  console.log("OPENAI_IMAGE_MODEL:", process.env.OPENAI_IMAGE_MODEL || "gpt-image-1-mini");
+  console.log("OPENAI_IMAGE_QUALITY:", process.env.OPENAI_IMAGE_QUALITY || "low");
 
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is missing");
@@ -197,10 +199,11 @@ export async function createAiFlyer(post, scan) {
   const prompt = buildPrompt(post, scan);
 
   const result = await openai.images.edit({
-    model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+    model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1-mini",
     image: imageFile,
     prompt,
-    size: "1024x1536"
+    size: "1024x1536",
+    quality: process.env.OPENAI_IMAGE_QUALITY || "low"
   });
 
   const b64 = result?.data?.[0]?.b64_json;
