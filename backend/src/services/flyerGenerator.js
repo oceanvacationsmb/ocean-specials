@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 
 import { uploadFlyerToCloudinary } from "./cloudinaryService.js";
-import { createAiFlyer } from "./openAiFlyerDesign.js";
+import { createTemplateFlyer } from "./templateFlyerBuilder.js";
 
 function buildDirectBookingUrl(post) {
   return (
@@ -30,17 +30,9 @@ function getOpenRange(post) {
 function getFactsLine(post) {
   const parts = [];
 
-  if (post.bedrooms) {
-    parts.push(`${post.bedrooms} Bedrooms`);
-  }
-
-  if (post.bathrooms) {
-    parts.push(`${post.bathrooms} Bathrooms`);
-  }
-
-  if (post.sleeps) {
-    parts.push(`Sleeps ${post.sleeps}`);
-  }
+  if (post.bedrooms) parts.push(`${post.bedrooms} Bedrooms`);
+  if (post.bathrooms) parts.push(`${post.bathrooms} Bathrooms`);
+  if (post.sleeps) parts.push(`Sleeps ${post.sleeps}`);
 
   return parts.join(" • ");
 }
@@ -81,7 +73,7 @@ ${directUrl}${airbnbLine}${vrboLine}`;
 }
 
 export async function generateAndUploadFlyer(post, scan) {
-  console.log("USING OPENAI FLYER GENERATOR");
+  console.log("USING TEMPLATE FLYER GENERATOR");
 
   const cleanId = String(post.propertyId || post.listingId || "property")
     .replace(/[^a-zA-Z0-9-_]/g, "-")
@@ -89,7 +81,7 @@ export async function generateAndUploadFlyer(post, scan) {
 
   const publicId = `${cleanId}-${scan.from}-${scan.to}-${Date.now()}`;
 
-  const { localFilePath } = await createAiFlyer(post, scan);
+  const { localFilePath } = await createTemplateFlyer(post, scan);
 
   const uploaded = await uploadFlyerToCloudinary(localFilePath, publicId);
 
