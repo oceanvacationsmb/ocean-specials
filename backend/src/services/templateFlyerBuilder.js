@@ -8,10 +8,11 @@ const HEIGHT = 1350;
 
 const COLORS = {
   bg: "#f8f4ec",
-  navy: "#063457",
-  teal: "#087f8c",
-  teal2: "#35a9b8",
-  gold: "#d5ad55",
+  navy: "#062f53",
+  navyDark: "#03243f",
+  teal: "#168c9d",
+  tealLight: "#37aebd",
+  gold: "#d7b35f",
   cream: "#fffaf0",
   white: "#ffffff",
   text: "#16324a",
@@ -96,7 +97,7 @@ function getOpenRanges(post, limit = 4) {
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`);
 }
 
-function wrapText(text, maxCharsPerLine = 32, maxLines = 2) {
+function wrapText(text, maxCharsPerLine = 30, maxLines = 2) {
   const words = String(text || "").split(/\s+/).filter(Boolean);
   const lines = [];
   let current = "";
@@ -112,11 +113,23 @@ function wrapText(text, maxCharsPerLine = 32, maxLines = 2) {
     }
   }
 
-  if (current) {
-    lines.push(current);
-  }
+  if (current) lines.push(current);
 
   return lines.slice(0, maxLines);
+}
+
+function getMainPhotoUrl(post) {
+  if (post.photoUrl) return post.photoUrl;
+
+  if (Array.isArray(post.photoUrls) && post.photoUrls[0]) {
+    return post.photoUrls[0];
+  }
+
+  if (Array.isArray(post.pictures) && post.pictures[0]) {
+    return post.pictures[0];
+  }
+
+  throw new Error("No property image found for flyer");
 }
 
 function getFeatureTitle(post) {
@@ -140,22 +153,6 @@ function getFactsLine(post) {
   return parts.join(" • ");
 }
 
-function getMainPhotoUrl(post) {
-  if (post.photoUrl) {
-    return post.photoUrl;
-  }
-
-  if (Array.isArray(post.photoUrls) && post.photoUrls[0]) {
-    return post.photoUrls[0];
-  }
-
-  if (Array.isArray(post.pictures) && post.pictures[0]) {
-    return post.pictures[0];
-  }
-
-  throw new Error("No property image found for flyer");
-}
-
 async function downloadImageBuffer(url) {
   const response = await axios.get(url, {
     responseType: "arraybuffer",
@@ -173,7 +170,7 @@ async function makeMainCollageImage(url) {
 
   return sharp(buffer)
     .rotate()
-    .resize(1020, 420, {
+    .resize(1020, 430, {
       fit: "cover",
       position: "center"
     })
@@ -199,12 +196,12 @@ function buildMonthObjects(scan) {
 }
 
 function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
-  const width = 250;
-  const height = 165;
-  const cellW = 29;
-  const cellH = 20;
-  const startX = 15;
-  const startY = 56;
+  const width = 295;
+  const height = 185;
+  const cellW = 32;
+  const cellH = 22;
+  const startX = 18;
+  const startY = 62;
 
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -221,10 +218,10 @@ function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
 
   const dayNameSvg = dayNames
     .map((day, index) => {
-      const x = startX + index * 33 + 14;
+      const x = startX + index * 37 + 16;
 
       return `
-        <text x="${x}" y="46" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="800">${day}</text>
+        <text x="${x}" y="50" font-size="12" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="800">${day}</text>
       `;
     })
     .join("");
@@ -236,8 +233,8 @@ function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
     const row = Math.floor(index / 7);
     const col = index % 7;
 
-    const x = startX + col * 33;
-    const y = startY + row * 22;
+    const x = startX + col * 37;
+    const y = startY + row * 24;
 
     const dateKey = formatDateKey(new Date(year, month, day));
 
@@ -256,16 +253,16 @@ function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
 
     cellsSvg += `
       <rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="5" fill="${fill}" />
-      <text x="${x + cellW / 2}" y="${y + 14}" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="${textFill}" text-anchor="middle" font-weight="800">${day}</text>
+      <text x="${x + cellW / 2}" y="${y + 16}" font-size="12" font-family="Arial, Helvetica, sans-serif" fill="${textFill}" text-anchor="middle" font-weight="800">${day}</text>
     `;
   }
 
   return `
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
       <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="${COLORS.white}" stroke="${COLORS.border}" stroke-width="1.5" />
-      <rect x="0" y="0" width="${width}" height="32" rx="14" fill="${COLORS.teal}" />
-      <rect x="0" y="22" width="${width}" height="12" fill="${COLORS.teal}" />
-      <text x="${width / 2}" y="21" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(monthLabel.toUpperCase())}</text>
+      <rect x="0" y="0" width="${width}" height="36" rx="14" fill="${COLORS.teal}" />
+      <rect x="0" y="24" width="${width}" height="14" fill="${COLORS.teal}" />
+      <text x="${width / 2}" y="24" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(monthLabel.toUpperCase())}</text>
       ${dayNameSvg}
       ${cellsSvg}
     </svg>
@@ -278,22 +275,22 @@ function buildOpenDatesSvg(ranges) {
   const itemSvg = items
     .slice(0, 4)
     .map((item, index) => {
-      const y = 57 + index * 31;
+      const y = 60 + index * 32;
 
       return `
-        <circle cx="20" cy="${y - 6}" r="8" fill="${COLORS.teal}" />
-        <path d="M16 ${y - 6} L19 ${y - 2} L25 ${y - 10}" stroke="${COLORS.white}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-        <text x="38" y="${y}" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(item)}</text>
+        <circle cx="22" cy="${y - 6}" r="8" fill="${COLORS.teal}" />
+        <path d="M18 ${y - 6} L21 ${y - 2} L27 ${y - 10}" stroke="${COLORS.white}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <text x="42" y="${y}" font-size="21" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(item)}</text>
       `;
     })
     .join("");
 
   return `
-    <svg width="255" height="165" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="255" height="165" rx="14" fill="${COLORS.white}" stroke="${COLORS.border}" stroke-width="1.5" />
-      <rect x="0" y="0" width="255" height="34" rx="14" fill="${COLORS.teal}" />
-      <rect x="0" y="24" width="255" height="12" fill="${COLORS.teal}" />
-      <text x="128" y="22" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">OPEN DATES</text>
+    <svg width="275" height="185" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="275" height="185" rx="14" fill="${COLORS.white}" stroke="${COLORS.border}" stroke-width="1.5" />
+      <rect x="0" y="0" width="275" height="36" rx="14" fill="${COLORS.teal}" />
+      <rect x="0" y="24" width="275" height="14" fill="${COLORS.teal}" />
+      <text x="138" y="24" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">OPEN DATES</text>
       ${itemSvg}
     </svg>
   `;
@@ -301,26 +298,26 @@ function buildOpenDatesSvg(ranges) {
 
 function buildCtaSvg() {
   return `
-    <svg width="250" height="165" xmlns="http://www.w3.org/2000/svg">
-      <rect x="6" y="8" width="238" height="149" rx="25" fill="${COLORS.white}" stroke="${COLORS.gold}" stroke-width="4" />
-      <text x="125" y="58" font-size="24" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">Book Direct &amp;</text>
-      <text x="125" y="90" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">SAVE UP TO</text>
-      <text x="125" y="138" font-size="64" font-family="Georgia, serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">20%</text>
+    <svg width="275" height="185" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="8" width="263" height="169" rx="28" fill="${COLORS.white}" stroke="${COLORS.gold}" stroke-width="4" />
+      <text x="138" y="66" font-size="28" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">Book Direct &amp;</text>
+      <text x="138" y="100" font-size="25" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">SAVE UP TO</text>
+      <text x="138" y="153" font-size="70" font-family="Georgia, serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">20%</text>
     </svg>
   `;
 }
 
 function buildButtonSvg(label) {
   return `
-    <svg width="275" height="58" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="275" height="58" rx="12" fill="${COLORS.navy}" />
-      <rect x="2.5" y="2.5" width="270" height="53" rx="10" fill="none" stroke="${COLORS.gold}" stroke-width="3" />
-      <text x="138" y="37" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(label)}</text>
+    <svg width="290" height="62" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="290" height="62" rx="12" fill="${COLORS.navy}" />
+      <rect x="2.5" y="2.5" width="285" height="57" rx="10" fill="none" stroke="${COLORS.gold}" stroke-width="3" />
+      <text x="145" y="40" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(label)}</text>
     </svg>
   `;
 }
 
-function buildOverlaySvg(post, openRangeText) {
+function buildMainOverlaySvg(post, openRangeText) {
   const propertyId = post.propertyId || post.shortId || "";
   const location = post.location || "";
   const featureTitle = getFeatureTitle(post);
@@ -330,7 +327,7 @@ function buildOverlaySvg(post, openRangeText) {
   const titleSvg = titleLines
     .map((line, index) => {
       return `
-        <text x="600" y="${675 + index * 34}" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(line)}</text>
+        <text x="610" y="${675 + index * 34}" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(line)}</text>
       `;
     })
     .join("");
@@ -342,33 +339,33 @@ function buildOverlaySvg(post, openRangeText) {
       <rect x="30" y="28" width="1020" height="430" rx="24" fill="${COLORS.white}" />
       <rect x="30" y="28" width="1020" height="430" rx="24" fill="none" stroke="#d7d7d7" stroke-width="2" />
 
-      <path d="M0 470 C 220 515, 420 450, 640 485 C 840 515, 980 475, 1080 495" fill="none" stroke="${COLORS.teal2}" stroke-width="6" opacity="0.9"/>
+      <path d="M0 470 C 220 515, 420 450, 640 485 C 840 515, 980 475, 1080 495" fill="none" stroke="${COLORS.tealLight}" stroke-width="6" opacity="0.9"/>
 
       <path d="M36 34 L132 34 L132 150 L84 128 L36 150 Z" fill="${COLORS.navy}" />
       <text x="84" y="62" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" text-anchor="middle" font-weight="900">PROPERTY ID</text>
       <text x="84" y="111" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(propertyId)}</text>
 
       <circle cx="540" cy="125" r="70" fill="${COLORS.white}" stroke="#c5ccd3" stroke-width="3" />
-      <text x="540" y="105" font-size="18" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">OCEAN</text>
-      <path d="M495 127 C515 105, 545 105, 565 127 C580 115, 600 120, 610 138" fill="none" stroke="${COLORS.teal}" stroke-width="4"/>
+      <text x="540" y="106" font-size="21" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">OCEAN</text>
+      <path d="M496 128 C516 108, 545 108, 565 128 C580 116, 600 121, 610 139" fill="none" stroke="${COLORS.teal}" stroke-width="4"/>
       <text x="540" y="160" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" letter-spacing="2" font-weight="900">VACATIONS</text>
 
-      <text x="66" y="560" font-size="27" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">${escapeXml(location)}</text>
-      <text x="66" y="630" font-size="80" font-family="Georgia, serif" fill="${COLORS.navy}" font-weight="900">OPEN</text>
-      <text x="66" y="695" font-size="64" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">AVAILABILITY</text>
-      <text x="66" y="760" font-size="58" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">SPECIALS</text>
-      <line x1="66" y1="780" x2="350" y2="780" stroke="${COLORS.gold}" stroke-width="4" />
+      <text x="64" y="550" font-size="28" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">${escapeXml(location)}</text>
+      <text x="64" y="622" font-size="84" font-family="Georgia, serif" fill="${COLORS.navy}" font-weight="900">OPEN</text>
+      <text x="64" y="690" font-size="66" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">AVAILABILITY</text>
+      <text x="64" y="758" font-size="62" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">SPECIALS</text>
+      <line x1="64" y1="780" x2="350" y2="780" stroke="${COLORS.gold}" stroke-width="4" />
       <text x="358" y="790" font-size="45" font-family="Georgia, serif" fill="${COLORS.gold}">✶</text>
 
-      <rect x="600" y="550" width="390" height="46" rx="7" fill="${COLORS.navy}" />
-      <text x="795" y="581" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(featureTitle)}</text>
+      <rect x="610" y="550" width="395" height="46" rx="7" fill="${COLORS.navy}" />
+      <text x="808" y="581" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(featureTitle)}</text>
 
-      <rect x="600" y="607" width="390" height="42" rx="7" fill="${COLORS.teal2}" />
-      <text x="795" y="635" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(factsLine)}</text>
+      <rect x="610" y="607" width="395" height="42" rx="7" fill="${COLORS.tealLight}" />
+      <text x="808" y="635" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(factsLine)}</text>
 
       ${titleSvg}
 
-      <g transform="translate(600 755)">
+      <g transform="translate(610 755)">
         <circle cx="31" cy="31" r="28" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
         <text x="31" y="39" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.bedrooms || "-")}</text>
         <text x="68" y="27" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Bedrooms</text>
@@ -382,18 +379,18 @@ function buildOverlaySvg(post, openRangeText) {
         <text x="382" y="27" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Sleeps</text>
       </g>
 
-      <text x="600" y="850" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" font-weight="900">Open availability:</text>
-      <text x="600" y="878" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(openRangeText)}</text>
+      <text x="610" y="850" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" font-weight="900">Open availability:</text>
+      <text x="610" y="878" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(openRangeText)}</text>
 
-      <text x="70" y="1295" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">oceanvacationsmb.com</text>
-      <text x="415" y="1295" font-size="16" font-family="Georgia, serif" fill="${COLORS.text}" font-style="italic">Links in caption.</text>
-      <text x="800" y="1295" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.grayText}">Availability subject to change</text>
+      <text x="70" y="1310" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">oceanvacationsmb.com</text>
+      <text x="415" y="1310" font-size="18" font-family="Georgia, serif" fill="${COLORS.text}" font-style="italic">Links in caption.</text>
+      <text x="800" y="1310" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.grayText}">Availability subject to change</text>
     </svg>
   `;
 }
 
 export async function createTemplateFlyer(post, scan) {
-  console.log("STARTING TEMPLATE FLYER");
+  console.log("STARTING EXACT STYLE TEMPLATE FLYER");
   console.log("PROPERTY PHOTO URL:", post.photoUrl);
 
   const openRangeText = getOpenDateRangeText(post);
@@ -402,10 +399,9 @@ export async function createTemplateFlyer(post, scan) {
 
   const [month1, month2] = buildMonthObjects(scan);
   const mainPhotoUrl = getMainPhotoUrl(post);
+  const mainPhoto = await makeMainCollageImage(mainPhotoUrl);
 
-  const mainCollageImage = await makeMainCollageImage(mainPhotoUrl);
-
-  const overlaySvg = buildOverlaySvg(post, openRangeText);
+  const overlaySvg = buildMainOverlaySvg(post, openRangeText);
   const month1Svg = buildCalendarSvg(month1.year, month1.month, openSet, scan.from, scan.to);
   const month2Svg = buildCalendarSvg(month2.year, month2.month, openSet, scan.from, scan.to);
   const openDatesSvg = buildOpenDatesSvg(openRanges);
@@ -426,22 +422,21 @@ export async function createTemplateFlyer(post, scan) {
   })
     .composite([
       { input: Buffer.from(overlaySvg), top: 0, left: 0 },
+      { input: mainPhoto, top: 40, left: 40 },
 
-      { input: mainCollageImage, top: 40, left: 40 },
+      { input: Buffer.from(month1Svg), top: 940, left: 40 },
+      { input: Buffer.from(month2Svg), top: 940, left: 350 },
+      { input: Buffer.from(openDatesSvg), top: 940, left: 660 },
+      { input: Buffer.from(ctaSvg), top: 940, left: 825 },
 
-      { input: Buffer.from(month1Svg), top: 935, left: 40 },
-      { input: Buffer.from(month2Svg), top: 935, left: 315 },
-      { input: Buffer.from(openDatesSvg), top: 935, left: 590 },
-      { input: Buffer.from(ctaSvg), top: 935, left: 835 },
-
-      { input: Buffer.from(directButtonSvg), top: 1215, left: 40 },
-      { input: Buffer.from(airbnbButtonSvg), top: 1215, left: 405 },
-      { input: Buffer.from(vrboButtonSvg), top: 1215, left: 770 }
+      { input: Buffer.from(directButtonSvg), top: 1230, left: 40 },
+      { input: Buffer.from(airbnbButtonSvg), top: 1230, left: 395 },
+      { input: Buffer.from(vrboButtonSvg), top: 1230, left: 750 }
     ])
     .png()
     .toFile(outputPath);
 
-  console.log("TEMPLATE FLYER CREATED");
+  console.log("EXACT STYLE TEMPLATE FLYER CREATED");
 
   return {
     localFilePath: outputPath
