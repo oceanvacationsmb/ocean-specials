@@ -1,10 +1,10 @@
 import OpenAI from "openai";
+import { toFile } from "openai/uploads";
 import axios from "axios";
 import sharp from "sharp";
 import os from "os";
 import path from "path";
 import fs from "fs/promises";
-import fsSync from "fs";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -77,7 +77,7 @@ function buildCalendarSummary(post, scan) {
   return `Show up to two small monthly calendars for ${monthList}. Highlight open dates in green and booked dates in red. The open date windows are: ${ranges}. The scan period starts ${scan.from} and ends ${scan.to}.`;
 }
 
-async function downloadAndConvertReferenceImage(url, outputPath) {
+async function downloadAndConvertReferenceImage(url) {
   const response = await axios.get(url, {
     responseType: "arraybuffer",
     timeout: 25000,
@@ -88,7 +88,7 @@ async function downloadAndConvertReferenceImage(url, outputPath) {
 
   const inputBuffer = Buffer.from(response.data);
 
-  await sharp(inputBuffer)
+  const pngBuffer = await sharp(inputBuffer)
     .rotate()
     .resize({
       width: 1400,
@@ -97,7 +97,9 @@ async function downloadAndConvertReferenceImage(url, outputPath) {
       withoutEnlargement: true
     })
     .png()
-    .toFile(outputPath);
+    .toBuffer();
+
+  return pngBuffer;
 }
 
 function buildPrompt(post, scan) {
@@ -167,6 +169,8 @@ Make the design beautiful, polished, premium, and balanced.
 }
 
 export async function createAiFlyer(post, scan) {
+  console.log("STARTING OPENAI IMAGE FLYER");
+
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is missing");
   }
@@ -175,23 +179,26 @@ export async function createAiFlyer(post, scan) {
     throw new Error("Property photoUrl is missing");
   }
 
-  const tempInputPath = path.join(
-    os.tmpdir(),
-    `property-reference-${Date.now()}.png`
-  );
-
   const tempOutputPath = path.join(
     os.tmpdir(),
     `ai-flyer-${Date.now()}.png`
   );
 
-  await downloadAndConvertReferenceImage(post.photoUrl, tempInputPath);
+  const pngBuffer = await downloadAndConvertReferenceImage(post.photoUrl);
+
+  const imageFile = await toFile(
+    pngBuffer,
+    "property-reference.png",
+    {
+      type: "image/png"
+    }
+  );
 
   const prompt = buildPrompt(post, scan);
 
   const result = await openai.images.edit({
     model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
-    image: fsSync.createReadStream(tempInputPath),
+    image: imageFile,
     prompt,
     size: "1024x1536"
   });
@@ -203,9 +210,10 @@ export async function createAiFlyer(post, scan) {
   }
 
   const imageBuffer = Buffer.from(b64, "base64");
+
   await fs.writeFile(tempOutputPath, imageBuffer);
 
-  await fs.unlink(tempInputPath).catch(() => {});
+  console.log("OPENAI IMAGE FLYER CREATED");
 
   return {
     localFilePath: tempOutputPath
