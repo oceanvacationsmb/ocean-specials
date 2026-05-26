@@ -9,7 +9,6 @@ const HEIGHT = 1350;
 const COLORS = {
   bg: "#f8f4ec",
   navy: "#063457",
-  navy2: "#082f4e",
   teal: "#087f8c",
   teal2: "#35a9b8",
   gold: "#d5ad55",
@@ -97,7 +96,7 @@ function getOpenRanges(post, limit = 4) {
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`);
 }
 
-function wrapText(text, maxCharsPerLine = 30, maxLines = 2) {
+function wrapText(text, maxCharsPerLine = 32, maxLines = 2) {
   const words = String(text || "").split(/\s+/).filter(Boolean);
   const lines = [];
   let current = "";
@@ -141,37 +140,20 @@ function getFactsLine(post) {
   return parts.join(" • ");
 }
 
-function getPhotoUrls(post) {
-  const urls = [];
-
-  if (Array.isArray(post.photoUrls)) {
-    urls.push(...post.photoUrls);
-  }
-
-  if (Array.isArray(post.pictures)) {
-    urls.push(...post.pictures);
-  }
-
+function getMainPhotoUrl(post) {
   if (post.photoUrl) {
-    urls.push(post.photoUrl);
+    return post.photoUrl;
   }
 
-  const clean = urls
-    .flat()
-    .filter(Boolean)
-    .map((item) => String(item).trim());
-
-  const unique = [...new Set(clean)];
-
-  if (!unique.length) {
-    throw new Error("No property image found for flyer");
+  if (Array.isArray(post.photoUrls) && post.photoUrls[0]) {
+    return post.photoUrls[0];
   }
 
-  while (unique.length < 4) {
-    unique.push(unique[unique.length % Math.max(1, unique.length)]);
+  if (Array.isArray(post.pictures) && post.pictures[0]) {
+    return post.pictures[0];
   }
 
-  return unique.slice(0, 4);
+  throw new Error("No property image found for flyer");
 }
 
 async function downloadImageBuffer(url) {
@@ -186,16 +168,16 @@ async function downloadImageBuffer(url) {
   return Buffer.from(response.data);
 }
 
-async function makePhotoTile(url, width, height) {
+async function makeMainCollageImage(url) {
   const buffer = await downloadImageBuffer(url);
 
   return sharp(buffer)
     .rotate()
-    .resize(width, height, {
+    .resize(1020, 420, {
       fit: "cover",
       position: "center"
     })
-    .jpeg({ quality: 92 })
+    .jpeg({ quality: 94 })
     .toBuffer();
 }
 
@@ -366,10 +348,10 @@ function buildOverlaySvg(post, openRangeText) {
       <text x="84" y="62" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" text-anchor="middle" font-weight="900">PROPERTY ID</text>
       <text x="84" y="111" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(propertyId)}</text>
 
-      <circle cx="535" cy="125" r="70" fill="${COLORS.white}" stroke="#c5ccd3" stroke-width="3" />
-      <text x="535" y="110" font-size="17" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">OCEAN</text>
-      <text x="535" y="144" font-size="45" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">O</text>
-      <text x="535" y="168" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" letter-spacing="2">VACATIONS</text>
+      <circle cx="540" cy="125" r="70" fill="${COLORS.white}" stroke="#c5ccd3" stroke-width="3" />
+      <text x="540" y="105" font-size="18" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">OCEAN</text>
+      <path d="M495 127 C515 105, 545 105, 565 127 C580 115, 600 120, 610 138" fill="none" stroke="${COLORS.teal}" stroke-width="4"/>
+      <text x="540" y="160" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" letter-spacing="2" font-weight="900">VACATIONS</text>
 
       <text x="66" y="560" font-size="27" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">${escapeXml(location)}</text>
       <text x="66" y="630" font-size="80" font-family="Georgia, serif" fill="${COLORS.navy}" font-weight="900">OPEN</text>
@@ -419,19 +401,9 @@ export async function createTemplateFlyer(post, scan) {
   const openSet = getOpenSet(post);
 
   const [month1, month2] = buildMonthObjects(scan);
-  const photoUrls = getPhotoUrls(post);
+  const mainPhotoUrl = getMainPhotoUrl(post);
 
-  const [
-    mainPhoto,
-    topRightPhoto,
-    bottomRightPhoto,
-    widePhoto
-  ] = await Promise.all([
-    makePhotoTile(photoUrls[0], 590, 390),
-    makePhotoTile(photoUrls[1], 420, 190),
-    makePhotoTile(photoUrls[2], 420, 190),
-    makePhotoTile(photoUrls[3], 1010, 105)
-  ]);
+  const mainCollageImage = await makeMainCollageImage(mainPhotoUrl);
 
   const overlaySvg = buildOverlaySvg(post, openRangeText);
   const month1Svg = buildCalendarSvg(month1.year, month1.month, openSet, scan.from, scan.to);
@@ -455,10 +427,7 @@ export async function createTemplateFlyer(post, scan) {
     .composite([
       { input: Buffer.from(overlaySvg), top: 0, left: 0 },
 
-      { input: mainPhoto, top: 40, left: 40 },
-      { input: topRightPhoto, top: 40, left: 630 },
-      { input: bottomRightPhoto, top: 240, left: 630 },
-      { input: widePhoto, top: 342, left: 40 },
+      { input: mainCollageImage, top: 40, left: 40 },
 
       { input: Buffer.from(month1Svg), top: 935, left: 40 },
       { input: Buffer.from(month2Svg), top: 935, left: 315 },
