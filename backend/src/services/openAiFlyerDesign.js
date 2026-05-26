@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import axios from "axios";
+import sharp from "sharp";
 import os from "os";
 import path from "path";
 import fs from "fs/promises";
@@ -76,13 +77,27 @@ function buildCalendarSummary(post, scan) {
   return `Show up to two small monthly calendars for ${monthList}. Highlight open dates in green and booked dates in red. The open date windows are: ${ranges}. The scan period starts ${scan.from} and ends ${scan.to}.`;
 }
 
-async function downloadReferenceImage(url, outputPath) {
+async function downloadAndConvertReferenceImage(url, outputPath) {
   const response = await axios.get(url, {
     responseType: "arraybuffer",
-    timeout: 20000
+    timeout: 25000,
+    headers: {
+      Accept: "image/jpeg,image/png,image/webp,*/*"
+    }
   });
 
-  await fs.writeFile(outputPath, response.data);
+  const inputBuffer = Buffer.from(response.data);
+
+  await sharp(inputBuffer)
+    .rotate()
+    .resize({
+      width: 1400,
+      height: 1000,
+      fit: "inside",
+      withoutEnlargement: true
+    })
+    .png()
+    .toFile(outputPath);
 }
 
 function buildPrompt(post, scan) {
@@ -162,7 +177,7 @@ export async function createAiFlyer(post, scan) {
 
   const tempInputPath = path.join(
     os.tmpdir(),
-    `property-reference-${Date.now()}.jpg`
+    `property-reference-${Date.now()}.png`
   );
 
   const tempOutputPath = path.join(
@@ -170,7 +185,7 @@ export async function createAiFlyer(post, scan) {
     `ai-flyer-${Date.now()}.png`
   );
 
-  await downloadReferenceImage(post.photoUrl, tempInputPath);
+  await downloadAndConvertReferenceImage(post.photoUrl, tempInputPath);
 
   const prompt = buildPrompt(post, scan);
 
