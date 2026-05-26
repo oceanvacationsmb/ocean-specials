@@ -2,27 +2,19 @@ import axios from "axios";
 import sharp from "sharp";
 import os from "os";
 import path from "path";
-import { fileURLToPath } from "url";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const TEMPLATE_PATH = path.join(
-  __dirname,
-  "../assets/flyer-template-style.png"
-);
-
 const COLORS = {
   bg: "#f8f4ec",
   navy: "#062f53",
+  navyDark: "#03243f",
   teal: "#158f9f",
   tealLight: "#39aebd",
   gold: "#d7b35f",
   white: "#ffffff",
-  cream: "#fffaf0",
+  cream: "#f8f4ec",
   text: "#16324a",
   muted: "#e8edf0",
   red: "#e75d4f",
@@ -107,7 +99,7 @@ function getOpenRanges(post, limit = 4) {
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`);
 }
 
-function wrapText(text, maxCharsPerLine = 32, maxLines = 2) {
+function wrapText(text, maxCharsPerLine = 28, maxLines = 2) {
   const words = String(text || "").split(/\s+/).filter(Boolean);
   const lines = [];
   let current = "";
@@ -193,7 +185,6 @@ async function makeTopPropertyImage(url) {
 function getCalendarMonth(post, scan) {
   const specials = getSortedSpecials(post);
   const sourceDate = specials[0]?.checkIn || scan.from;
-
   const date = new Date(`${sourceDate}T00:00:00`);
 
   return {
@@ -203,12 +194,12 @@ function getCalendarMonth(post, scan) {
 }
 
 function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
-  const width = 360;
-  const height = 210;
-  const cellW = 39;
-  const cellH = 25;
-  const startX = 27;
-  const startY = 72;
+  const width = 350;
+  const height = 205;
+  const cellW = 38;
+  const cellH = 24;
+  const startX = 25;
+  const startY = 70;
 
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -225,10 +216,10 @@ function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
 
   const dayNameSvg = dayNames
     .map((day, index) => {
-      const x = startX + index * 44 + 19;
+      const x = startX + index * 43 + 19;
 
       return `
-        <text x="${x}" y="58" font-size="13" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="900">${day}</text>
+        <text x="${x}" y="57" font-size="13" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="900">${day}</text>
       `;
     })
     .join("");
@@ -240,8 +231,8 @@ function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
     const row = Math.floor(index / 7);
     const col = index % 7;
 
-    const x = startX + col * 44;
-    const y = startY + row * 28;
+    const x = startX + col * 43;
+    const y = startY + row * 27;
 
     const dateKey = formatDateKey(new Date(year, month, day));
 
@@ -260,7 +251,7 @@ function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
 
     cellsSvg += `
       <rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="6" fill="${fill}" />
-      <text x="${x + cellW / 2}" y="${y + 18}" font-size="13" font-family="Arial, Helvetica, sans-serif" fill="${textFill}" text-anchor="middle" font-weight="900">${day}</text>
+      <text x="${x + cellW / 2}" y="${y + 17}" font-size="13" font-family="Arial, Helvetica, sans-serif" fill="${textFill}" text-anchor="middle" font-weight="900">${day}</text>
     `;
   }
 
@@ -282,102 +273,120 @@ function buildOpenDatesSvg(ranges) {
   const itemSvg = items
     .slice(0, 4)
     .map((item, index) => {
-      const y = 66 + index * 34;
+      const y = 65 + index * 35;
 
       return `
-        <circle cx="24" cy="${y - 7}" r="8" fill="${COLORS.teal}" />
-        <path d="M20 ${y - 7} L23 ${y - 3} L29 ${y - 11}" stroke="${COLORS.white}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-        <text x="46" y="${y}" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(item)}</text>
+        <circle cx="25" cy="${y - 7}" r="8" fill="${COLORS.teal}" />
+        <path d="M21 ${y - 7} L24 ${y - 3} L30 ${y - 11}" stroke="${COLORS.white}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <text x="48" y="${y}" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(item)}</text>
       `;
     })
     .join("");
 
   return `
-    <svg width="285" height="210" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="285" height="210" rx="14" fill="${COLORS.white}" stroke="${COLORS.border}" stroke-width="1.5" />
-      <rect x="0" y="0" width="285" height="42" rx="14" fill="${COLORS.teal}" />
-      <rect x="0" y="28" width="285" height="14" fill="${COLORS.teal}" />
-      <text x="142" y="28" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">OPEN DATES</text>
+    <svg width="310" height="205" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="310" height="205" rx="14" fill="${COLORS.white}" stroke="${COLORS.border}" stroke-width="1.5" />
+      <rect x="0" y="0" width="310" height="42" rx="14" fill="${COLORS.teal}" />
+      <rect x="0" y="28" width="310" height="14" fill="${COLORS.teal}" />
+      <text x="155" y="28" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">OPEN DATES</text>
       ${itemSvg}
     </svg>
   `;
 }
 
-function buildDynamicOverlaySvg(post) {
+function buildBottomButton(label, icon) {
+  return `
+    <svg width="295" height="65" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="295" height="65" rx="13" fill="${COLORS.navy}" />
+      <rect x="2.5" y="2.5" width="290" height="60" rx="11" fill="none" stroke="${COLORS.gold}" stroke-width="3" />
+      <circle cx="58" cy="33" r="22" fill="${COLORS.white}" opacity="0.95"/>
+      <text x="58" y="41" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">${escapeXml(icon)}</text>
+      <text x="175" y="40" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(label)}</text>
+    </svg>
+  `;
+}
+
+function buildCleanLowerOverlaySvg(post) {
   const propertyId = post.propertyId || post.shortId || "";
   const location = post.location || "";
   const featureTitle = getFeatureTitle(post);
   const factsLine = getFactsLine(post);
   const openRangeText = getOpenDateRangeText(post);
-  const titleLines = wrapText(post.propertyTitle || "", 31, 2);
+  const titleLines = wrapText(post.propertyTitle || "", 29, 2);
 
   const titleSvg = titleLines
     .map((line, index) => {
       return `
-        <text x="610" y="${800 + index * 34}" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(line)}</text>
+        <text x="818" y="${685 + index * 35}" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="900">${escapeXml(line)}</text>
       `;
     })
     .join("");
 
   return `
     <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="${WIDTH}" height="${HEIGHT}" fill="none" />
+      <rect x="0" y="500" width="${WIDTH}" height="850" fill="${COLORS.bg}" />
 
-      <path d="M35 5 L200 5 L200 190 L118 155 L35 190 Z" fill="${COLORS.navy}" />
-      <path d="M47 13 L188 13 L188 168 L118 140 L47 168 Z" fill="none" stroke="${COLORS.gold}" stroke-width="2" stroke-dasharray="6 5" />
-      <text x="117" y="82" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" text-anchor="middle" font-weight="900">PROPERTY ID</text>
-      <line x1="65" y1="122" x2="170" y2="122" stroke="${COLORS.white}" stroke-width="2" opacity="0.8"/>
-      <text x="117" y="158" font-size="31" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(propertyId)}</text>
+      <path d="M0 500 C 220 540, 430 475, 650 510 C 860 545, 975 498, 1080 525" fill="none" stroke="${COLORS.tealLight}" stroke-width="7" opacity="0.85"/>
 
-      <circle cx="540" cy="105" r="82" fill="${COLORS.white}" stroke="${COLORS.navy}" stroke-width="3" opacity="0.98" />
-      <text x="540" y="92" font-size="33" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">OCEAN</text>
-      <path d="M485 115 C510 93, 538 95, 565 116 C586 100, 610 109, 626 129" fill="none" stroke="${COLORS.teal}" stroke-width="5"/>
-      <text x="540" y="143" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" letter-spacing="3" font-weight="900">VACATIONS</text>
-      <text x="540" y="165" font-size="9" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" text-anchor="middle" letter-spacing="1">UNFORGETTABLE GETAWAYS</text>
+      <path d="M40 0 L200 0 L200 188 L120 155 L40 188 Z" fill="${COLORS.navy}" />
+      <path d="M52 12 L188 12 L188 166 L120 138 L52 166 Z" fill="none" stroke="${COLORS.gold}" stroke-width="2" stroke-dasharray="6 5" />
+      <text x="120" y="80" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" text-anchor="middle" font-weight="900">PROPERTY ID</text>
+      <line x1="70" y1="120" x2="170" y2="120" stroke="${COLORS.white}" stroke-width="2" opacity="0.85"/>
+      <text x="120" y="158" font-size="33" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(propertyId)}</text>
 
-      <rect x="115" y="555" width="340" height="38" fill="${COLORS.bg}" opacity="0.98" />
-      <text x="285" y="584" font-size="28" font-family="Georgia, serif" fill="${COLORS.teal}" text-anchor="middle" font-style="italic">${escapeXml(location)}</text>
+      <text x="270" y="585" font-size="30" font-family="Georgia, serif" fill="${COLORS.teal}" text-anchor="middle" font-style="italic">${escapeXml(location)}</text>
+      <text x="65" y="665" font-size="93" font-family="Georgia, serif" fill="${COLORS.navy}" font-weight="900">OPEN</text>
+      <text x="65" y="735" font-size="65" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">AVAILABILITY</text>
+      <text x="65" y="805" font-size="66" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">SPECIALS</text>
+      <line x1="65" y1="828" x2="365" y2="828" stroke="${COLORS.gold}" stroke-width="4" />
+      <text x="375" y="838" font-size="48" font-family="Georgia, serif" fill="${COLORS.gold}">✶</text>
 
-      <rect x="610" y="740" width="400" height="56" rx="5" fill="${COLORS.navy}" />
-      <rect x="610" y="795" width="400" height="52" rx="5" fill="${COLORS.teal}" />
+      <rect x="620" y="565" width="395" height="50" rx="8" fill="${COLORS.navy}" />
+      <text x="818" y="598" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(featureTitle)}</text>
+
+      <rect x="620" y="625" width="395" height="45" rx="8" fill="${COLORS.teal}" />
+      <text x="818" y="655" font-size="21" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(factsLine)}</text>
+
       ${titleSvg}
 
-      <rect x="610" y="690" width="400" height="46" rx="8" fill="${COLORS.navy}" />
-      <text x="810" y="721" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(featureTitle)}</text>
+      <g transform="translate(625 755)">
+        <circle cx="32" cy="32" r="29" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
+        <text x="32" y="40" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.bedrooms || "-")}</text>
+        <text x="72" y="30" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Bedrooms</text>
 
-      <rect x="610" y="845" width="400" height="40" rx="8" fill="${COLORS.tealLight}" />
-      <text x="810" y="872" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(factsLine)}</text>
+        <circle cx="235" cy="32" r="29" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
+        <text x="235" y="40" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.sleeps || "-")}</text>
+        <text x="275" y="30" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Sleeps</text>
 
-      <rect x="600" y="880" width="430" height="120" fill="${COLORS.bg}" opacity="0.96" />
+        <circle cx="32" cy="88" r="29" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
+        <text x="32" y="96" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.bathrooms || "-")}</text>
+        <text x="72" y="86" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Bathrooms</text>
 
-      <g transform="translate(620 895)">
-        <circle cx="30" cy="30" r="27" fill="${COLORS.white}" stroke="${COLORS.navy}" stroke-width="2"/>
-        <text x="30" y="38" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.bedrooms || "-")}</text>
-        <text x="67" y="28" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Bedrooms</text>
-
-        <circle cx="230" cy="30" r="27" fill="${COLORS.white}" stroke="${COLORS.navy}" stroke-width="2"/>
-        <text x="230" y="38" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.sleeps || "-")}</text>
-        <text x="267" y="28" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Sleeps</text>
-
-        <circle cx="30" cy="85" r="27" fill="${COLORS.white}" stroke="${COLORS.navy}" stroke-width="2"/>
-        <text x="30" y="93" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.bathrooms || "-")}</text>
-        <text x="67" y="83" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Bathrooms</text>
-
-        <circle cx="230" cy="85" r="27" fill="${COLORS.white}" stroke="${COLORS.navy}" stroke-width="2"/>
-        <text x="230" y="93" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.sleeps || "-")}</text>
-        <text x="267" y="83" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Sleeps</text>
+        <circle cx="235" cy="88" r="29" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
+        <text x="235" y="96" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.sleeps || "-")}</text>
+        <text x="275" y="86" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Sleeps</text>
       </g>
 
-      <rect x="610" y="1000" width="395" height="38" fill="${COLORS.bg}" opacity="0.97" />
-      <text x="610" y="1025" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" font-weight="900">Open availability:</text>
-      <text x="760" y="1025" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(openRangeText)}</text>
+      <text x="625" y="890" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" font-weight="900">Open availability:</text>
+      <text x="625" y="920" font-size="21" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(openRangeText)}</text>
+
+      <rect x="695" y="1015" width="340" height="190" rx="25" fill="${COLORS.white}" stroke="${COLORS.gold}" stroke-width="4" />
+      <text x="865" y="1075" font-size="30" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">Book Direct &amp;</text>
+      <text x="865" y="1110" font-size="27" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">SAVE UP TO</text>
+      <text x="865" y="1180" font-size="78" font-family="Georgia, serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">20%</text>
+
+      <path d="M0 1220 C 210 1265, 390 1195, 620 1235 C 850 1275, 980 1215, 1080 1245" fill="none" stroke="${COLORS.tealLight}" stroke-width="15" opacity="0.65"/>
+      <path d="M0 1242 C 230 1285, 415 1210, 660 1250 C 880 1290, 980 1240, 1080 1260" fill="none" stroke="${COLORS.teal}" stroke-width="8" opacity="0.55"/>
+
+      <text x="80" y="1314" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">oceanvacationsmb.com</text>
+      <text x="430" y="1314" font-size="18" font-family="Georgia, serif" fill="${COLORS.text}" font-style="italic">Links in caption.</text>
+      <text x="795" y="1314" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.grayText}">Availability subject to change</text>
     </svg>
   `;
 }
 
 export async function createTemplateFlyer(post, scan) {
-  console.log("STARTING REAL TEMPLATE FLYER");
-  console.log("TEMPLATE PATH:", TEMPLATE_PATH);
+  console.log("STARTING CLEAN FINAL FLYER");
   console.log("PROPERTY PHOTO URL:", post.photoUrl);
 
   const openSet = getOpenSet(post);
@@ -385,18 +394,10 @@ export async function createTemplateFlyer(post, scan) {
   const calendarMonth = getCalendarMonth(post, scan);
 
   const mainPhotoUrl = getMainPhotoUrl(post);
-
-  const templateImage = await sharp(TEMPLATE_PATH)
-    .resize(WIDTH, HEIGHT, {
-      fit: "cover",
-      position: "center"
-    })
-    .png()
-    .toBuffer();
-
   const topPropertyImage = await makeTopPropertyImage(mainPhotoUrl);
 
-  const dynamicOverlaySvg = buildDynamicOverlaySvg(post);
+  const lowerOverlaySvg = buildCleanLowerOverlaySvg(post);
+
   const calendarSvg = buildCalendarSvg(
     calendarMonth.year,
     calendarMonth.month,
@@ -407,7 +408,11 @@ export async function createTemplateFlyer(post, scan) {
 
   const openDatesSvg = buildOpenDatesSvg(openRanges);
 
-  const outputPath = path.join(os.tmpdir(), `real-template-flyer-${Date.now()}.png`);
+  const directButtonSvg = buildBottomButton("DIRECT BOOKING", "▣");
+  const airbnbButtonSvg = buildBottomButton("AIRBNB", "A");
+  const vrboButtonSvg = buildBottomButton("VRBO", "⌂");
+
+  const outputPath = path.join(os.tmpdir(), `clean-final-flyer-${Date.now()}.png`);
 
   await sharp({
     create: {
@@ -419,35 +424,45 @@ export async function createTemplateFlyer(post, scan) {
   })
     .composite([
       {
-        input: templateImage,
-        top: 0,
-        left: 0
-      },
-      {
         input: topPropertyImage,
         top: 0,
         left: 0
       },
       {
-        input: Buffer.from(dynamicOverlaySvg),
+        input: Buffer.from(lowerOverlaySvg),
         top: 0,
         left: 0
       },
       {
         input: Buffer.from(calendarSvg),
-        top: 1000,
-        left: 50
+        top: 985,
+        left: 55
       },
       {
         input: Buffer.from(openDatesSvg),
-        top: 1000,
-        left: 425
+        top: 985,
+        left: 420
+      },
+      {
+        input: Buffer.from(directButtonSvg),
+        top: 1238,
+        left: 65
+      },
+      {
+        input: Buffer.from(airbnbButtonSvg),
+        top: 1238,
+        left: 392
+      },
+      {
+        input: Buffer.from(vrboButtonSvg),
+        top: 1238,
+        left: 720
       }
     ])
     .png()
     .toFile(outputPath);
 
-  console.log("REAL TEMPLATE FLYER CREATED");
+  console.log("CLEAN FINAL FLYER CREATED");
 
   return {
     localFilePath: outputPath
