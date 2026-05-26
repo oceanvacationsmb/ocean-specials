@@ -23,12 +23,14 @@ function getRawListings(data) {
 
 function getPicture(listing) {
   return (
-    listing.picture?.regular ||
     listing.picture?.large ||
-    listing.picture ||
-    listing.pictures?.[0]?.regular ||
+    listing.picture?.regular ||
+    listing.picture?.thumbnail ||
     listing.pictures?.[0]?.large ||
+    listing.pictures?.[0]?.regular ||
+    listing.pictures?.[0]?.thumbnail ||
     listing.pictures?.[0]?.url ||
+    listing.picture ||
     ""
   );
 }
