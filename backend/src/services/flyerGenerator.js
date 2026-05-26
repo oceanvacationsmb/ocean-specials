@@ -73,7 +73,7 @@ ${directUrl}${airbnbLine}${vrboLine}`;
 }
 
 export async function generateAndUploadFlyer(post, scan) {
-  console.log("USING TEMPLATE FLYER GENERATOR");
+  console.log("USING FIXED TEMPLATE FLYER GENERATOR");
 
   const cleanId = String(post.propertyId || post.listingId || "property")
     .replace(/[^a-zA-Z0-9-_]/g, "-")
