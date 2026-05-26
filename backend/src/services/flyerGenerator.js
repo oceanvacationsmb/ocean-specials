@@ -54,14 +54,22 @@ function buildCaption(post, flyerUrl) {
   const vrboUrl = post.postVrboLink || post.vrboUrl || "";
 
   const airbnbLine = airbnbUrl
-    ? `\nAirbnb:\n${airbnbUrl}\n`
+    ? `
+
+Airbnb:
+${airbnbUrl}`
     : "";
 
   const vrboLine = vrboUrl
-    ? `\nVRBO:\n${vrboUrl}\n`
+    ? `
+
+VRBO:
+${vrboUrl}`
     : "";
 
-  return `LAST MINUTE DEALS IN "${post.location}"
+  return `${flyerUrl}
+
+LAST MINUTE DEALS IN "${post.location}"
 
 Open availability between ${openRange}
 
