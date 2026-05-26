@@ -57,7 +57,12 @@ function buildCalendarSummary(post, scan) {
   const specials = post.specials || [];
 
   if (!specials.length) {
-    return "No open dates found.";
+    return `
+Show one clean monthly calendar.
+Do not show any green dates unless dates are truly available.
+Past dates should be muted gray.
+Unavailable, blocked, or booked dates should be red or muted gray.
+`;
   }
 
   const months = new Set();
@@ -70,11 +75,25 @@ function buildCalendarSummary(post, scan) {
   const monthList = Array.from(months).slice(0, 2).join(" and ");
 
   const ranges = specials
-    .slice(0, 8)
+    .slice(0, 10)
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`)
     .join(", ");
 
-  return `Show up to two small monthly calendars for ${monthList}. Highlight open dates in green and booked dates in red. Open date windows: ${ranges}. Scan period: ${scan.from} to ${scan.to}.`;
+  return `
+Show one or two small monthly calendars for ${monthList}.
+
+Calendar color rules:
+Only available dates should be green.
+Booked dates should be red.
+Blocked dates should be red or muted gray.
+Unavailable dates should be red or muted gray.
+Past dates should be muted light gray.
+Do not show past dates as open.
+Do not show blocked dates as open.
+Do not show unavailable dates as open.
+Only these open date windows can be green: ${ranges}.
+The scan period is ${scan.from} to ${scan.to}.
+`;
 }
 
 async function downloadAndConvertReferenceImage(url) {
@@ -91,8 +110,8 @@ async function downloadAndConvertReferenceImage(url) {
   const pngBuffer = await sharp(inputBuffer)
     .rotate()
     .resize({
-      width: 1400,
-      height: 1000,
+      width: 1200,
+      height: 900,
       fit: "inside",
       withoutEnlargement: true
     })
@@ -107,30 +126,36 @@ function buildPrompt(post, scan) {
   const factsLine = getFactsLine(post);
   const calendarSummary = buildCalendarSummary(post, scan);
 
+  const sellingPoints = Array.isArray(post.sellingPoints)
+    ? post.sellingPoints.filter(Boolean).slice(0, 3).join(" • ")
+    : "";
+
   return `
 Create a premium professional vertical vacation rental flyer for Ocean Vacations.
 
 Use the provided property photo as the main visual reference.
 
-IMPORTANT:
-Make this look like a luxury coastal vacation rental ad, not a basic template.
-Use one large beautiful hero image.
-Do not make the image tiny.
-Do not use a busy 4-photo collage.
+VERY IMPORTANT PHOTO RULES:
+Use ONE large beautiful hero image from the reference property photo.
+Do not make a collage.
+Do not make the photo tiny.
 Do not awkwardly crop the property.
-Show the property image large and blended nicely into the flyer.
-If the image does not fill the space, use a soft blurred background version of the same image behind it.
+Show the property image large and beautifully blended into the flyer.
+If the image does not fill the full flyer width, use a soft blurred background version of the same image behind it.
+Make the photo area look elegant, natural, and high end.
 
 STYLE:
-Premium beach rental flyer.
-Luxury real estate marketing style.
-Clean, polished, coastal, modern.
-Navy, teal, cream, white, and gold accents.
-Elegant typography.
+Luxury coastal vacation rental flyer.
+Premium real estate marketing style.
+Elegant, polished, modern, and expensive looking.
+Use navy, teal, cream, white, and subtle gold accents.
+Clean spacing.
+Beautiful typography.
 No clutter.
 No overlapping text.
-Balanced layout.
+No cheap template look.
 Facebook ready.
+Balanced vertical flyer.
 
 TEXT TO INCLUDE:
 LAST MINUTE DEALS
@@ -139,32 +164,46 @@ LAST MINUTE DEALS IN "${post.location || ""}"
 
 Open availability between ${openDateRangeText}
 
-${post.propertyTitle || ""}
+Property title:
+"${post.propertyTitle || ""}"
 
-${factsLine}
+Property facts:
+"${factsLine}"
 
-Book direct and SAVE UP TO 20%
+Feature line:
+"${sellingPoints}"
 
-OPEN DATES
-${openDateRangeText}
+Badge text:
+"Book direct and SAVE UP TO 20%"
 
-DIRECT BOOKING
-AIRBNB
-VRBO
+Open dates box title:
+"OPEN DATES"
 
-oceanvacationsmb.com
+Open dates box value:
+"${openDateRangeText}"
 
-Availability subject to change
+Small buttons or footer labels:
+"DIRECT BOOKING"
+"AIRBNB"
+"VRBO"
+
+Footer:
+"oceanvacationsmb.com"
+
+Small note:
+"Availability subject to change"
 
 CALENDAR:
 ${calendarSummary}
 
 RULES:
 Keep the property title exactly as given.
-Do not replace the title with the short ID.
-The short property ID can be used only as a small badge.
-Do not put long URLs inside the flyer.
-Make the flyer beautiful, premium, and balanced.
+Do not replace the property title with the short ID.
+The short ID can appear only as a small badge if needed.
+Do not place long URLs inside the flyer.
+Do not make a busy collage.
+Do not make the image small.
+Make the flyer much more professional than a basic SVG template.
 `;
 }
 
@@ -172,6 +211,7 @@ export async function createAiFlyer(post, scan) {
   console.log("STARTING OPENAI IMAGE FLYER");
   console.log("OPENAI_IMAGE_MODEL:", process.env.OPENAI_IMAGE_MODEL || "gpt-image-1-mini");
   console.log("OPENAI_IMAGE_QUALITY:", process.env.OPENAI_IMAGE_QUALITY || "low");
+  console.log("PROPERTY PHOTO URL:", post.photoUrl);
 
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is missing");
