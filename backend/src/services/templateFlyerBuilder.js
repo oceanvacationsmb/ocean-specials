@@ -2,24 +2,25 @@ import axios from "axios";
 import sharp from "sharp";
 import os from "os";
 import path from "path";
-import fs from "fs/promises";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
 
 const COLORS = {
-  bg: "#f7f3ec",
-  navy: "#083a6b",
-  teal: "#2ca9bc",
-  tealDark: "#1f8b9d",
-  gold: "#d9b45c",
-  lightBlue: "#dff4fb",
-  line: "#d8d0c2",
-  open: "#5bbd66",
-  closed: "#eb6a5c",
-  muted: "#e7eaee",
-  text: "#17324a",
-  white: "#ffffff"
+  bg: "#f8f4ec",
+  navy: "#063457",
+  navy2: "#082f4e",
+  teal: "#087f8c",
+  teal2: "#35a9b8",
+  gold: "#d5ad55",
+  cream: "#fffaf0",
+  white: "#ffffff",
+  text: "#16324a",
+  muted: "#e8edf0",
+  red: "#e75d4f",
+  green: "#5ca84a",
+  grayText: "#7b8790",
+  border: "#d8d4c8"
 };
 
 function escapeXml(value = "") {
@@ -35,12 +36,14 @@ function formatDateKey(date) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
+
   return `${year}-${month}-${day}`;
 }
 
 function addDays(dateString, days) {
   const date = new Date(`${dateString}T00:00:00`);
   date.setDate(date.getDate() + days);
+
   return formatDateKey(date);
 }
 
@@ -94,30 +97,14 @@ function getOpenRanges(post, limit = 4) {
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`);
 }
 
-function getFacts(post) {
-  return [
-    {
-      label: "Bedrooms",
-      value: post.bedrooms || "-"
-    },
-    {
-      label: "Bathrooms",
-      value: post.bathrooms || "-"
-    },
-    {
-      label: "Sleeps",
-      value: post.sleeps || "-"
-    }
-  ];
-}
-
-function wrapText(text, maxCharsPerLine = 34) {
+function wrapText(text, maxCharsPerLine = 30, maxLines = 2) {
   const words = String(text || "").split(/\s+/).filter(Boolean);
   const lines = [];
   let current = "";
 
   for (const word of words) {
     const test = current ? `${current} ${word}` : word;
+
     if (test.length <= maxCharsPerLine) {
       current = test;
     } else {
@@ -126,32 +113,25 @@ function wrapText(text, maxCharsPerLine = 34) {
     }
   }
 
-  if (current) lines.push(current);
+  if (current) {
+    lines.push(current);
+  }
 
-  return lines.slice(0, 3);
+  return lines.slice(0, maxLines);
 }
 
-function pickFeatureTitle(post) {
-  const points = Array.isArray(post.sellingPoints)
-    ? post.sellingPoints.filter(Boolean)
-    : [];
+function getFeatureTitle(post) {
+  const text = `${post.propertyTitle || ""} ${(post.sellingPoints || []).join(" ")}`.toLowerCase();
 
-  if (points[0]) {
-    return String(points[0]).toUpperCase();
-  }
+  if (text.includes("oceanfront")) return "DIRECT OCEANFRONT";
+  if (text.includes("private pool")) return "PRIVATE POOL";
+  if (text.includes("pool")) return "POOL ACCESS";
+  if (text.includes("walk")) return "WALK TO BEACH";
 
-  if ((post.propertyTitle || "").toLowerCase().includes("oceanfront")) {
-    return "DIRECT OCEANFRONT";
-  }
-
-  if ((post.propertyTitle || "").toLowerCase().includes("pool")) {
-    return "PRIVATE POOL";
-  }
-
-  return "VACATION RENTAL";
+  return "BEACH VACATION";
 }
 
-function getFeatureLine(post) {
+function getFactsLine(post) {
   const parts = [];
 
   if (post.bedrooms) parts.push(`${post.bedrooms}BR`);
@@ -215,7 +195,7 @@ async function makePhotoTile(url, width, height) {
       fit: "cover",
       position: "center"
     })
-    .jpeg({ quality: 90 })
+    .jpeg({ quality: 92 })
     .toBuffer();
 }
 
@@ -225,19 +205,24 @@ function buildMonthObjects(scan) {
   const month2 = new Date(start.getFullYear(), start.getMonth() + 1, 1);
 
   return [
-    { year: month1.getFullYear(), month: month1.getMonth() },
-    { year: month2.getFullYear(), month: month2.getMonth() }
+    {
+      year: month1.getFullYear(),
+      month: month1.getMonth()
+    },
+    {
+      year: month2.getFullYear(),
+      month: month2.getMonth()
+    }
   ];
 }
 
 function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
-  const width = 260;
-  const height = 160;
-  const headerHeight = 28;
-  const cellW = 31;
+  const width = 250;
+  const height = 165;
+  const cellW = 29;
   const cellH = 20;
-  const startX = 14;
-  const startY = 54;
+  const startX = 15;
+  const startY = 56;
 
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -251,78 +236,82 @@ function buildCalendarSvg(year, month, openSet, scanFrom, scanTo) {
   const todayKey = formatDateKey(new Date());
 
   const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
+
   const dayNameSvg = dayNames
     .map((day, index) => {
-      const x = startX + index * 34 + 11;
-      return `<text x="${x}" y="46" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="700">${day}</text>`;
+      const x = startX + index * 33 + 14;
+
+      return `
+        <text x="${x}" y="46" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="800">${day}</text>
+      `;
     })
     .join("");
 
   let cellsSvg = "";
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const index = weekdayOffset + (day - 1);
+    const index = weekdayOffset + day - 1;
     const row = Math.floor(index / 7);
     const col = index % 7;
-    const x = startX + col * 34;
-    const y = startY + row * 23;
+
+    const x = startX + col * 33;
+    const y = startY + row * 22;
 
     const dateKey = formatDateKey(new Date(year, month, day));
 
     let fill = COLORS.muted;
-    let textFill = COLORS.text;
+    let textFill = COLORS.grayText;
 
-    if (dateKey < scanFrom || dateKey > scanTo || dateKey < todayKey) {
-      fill = COLORS.muted;
-      textFill = "#7f8b96";
-    } else if (openSet.has(dateKey)) {
-      fill = COLORS.open;
-      textFill = COLORS.white;
-    } else {
-      fill = COLORS.closed;
-      textFill = COLORS.white;
+    if (dateKey >= scanFrom && dateKey < scanTo && dateKey >= todayKey) {
+      if (openSet.has(dateKey)) {
+        fill = COLORS.green;
+        textFill = COLORS.white;
+      } else {
+        fill = COLORS.red;
+        textFill = COLORS.white;
+      }
     }
 
     cellsSvg += `
-      <rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="6" fill="${fill}" />
-      <text x="${x + cellW / 2}" y="${y + 14}" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="${textFill}" text-anchor="middle" font-weight="700">${day}</text>
+      <rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="5" fill="${fill}" />
+      <text x="${x + cellW / 2}" y="${y + 14}" font-size="11" font-family="Arial, Helvetica, sans-serif" fill="${textFill}" text-anchor="middle" font-weight="800">${day}</text>
     `;
   }
 
   return `
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="${COLORS.white}" stroke="${COLORS.line}" stroke-width="1.5" />
-      <rect x="0" y="0" width="${width}" height="${headerHeight}" rx="14" fill="${COLORS.tealDark}" />
-      <rect x="0" y="${headerHeight - 10}" width="${width}" height="12" fill="${COLORS.tealDark}" />
-      <text x="${width / 2}" y="19" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="700">${escapeXml(monthLabel.toUpperCase())}</text>
+      <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="${COLORS.white}" stroke="${COLORS.border}" stroke-width="1.5" />
+      <rect x="0" y="0" width="${width}" height="32" rx="14" fill="${COLORS.teal}" />
+      <rect x="0" y="22" width="${width}" height="12" fill="${COLORS.teal}" />
+      <text x="${width / 2}" y="21" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(monthLabel.toUpperCase())}</text>
       ${dayNameSvg}
       ${cellsSvg}
     </svg>
   `;
 }
 
-function buildOpenDatesListSvg(ranges) {
+function buildOpenDatesSvg(ranges) {
   const items = ranges.length ? ranges : ["Contact us for dates"];
 
   const itemSvg = items
     .slice(0, 4)
     .map((item, index) => {
-      const y = 58 + index * 29;
+      const y = 57 + index * 31;
 
       return `
-        <circle cx="18" cy="${y - 5}" r="7" fill="${COLORS.teal}" />
-        <path d="M14 ${y - 5} L17 ${y - 2} L23 ${y - 10}" stroke="${COLORS.white}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-        <text x="34" y="${y}" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="700">${escapeXml(item)}</text>
+        <circle cx="20" cy="${y - 6}" r="8" fill="${COLORS.teal}" />
+        <path d="M16 ${y - 6} L19 ${y - 2} L25 ${y - 10}" stroke="${COLORS.white}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <text x="38" y="${y}" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(item)}</text>
       `;
     })
     .join("");
 
   return `
-    <svg width="250" height="165" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="250" height="165" rx="16" fill="${COLORS.white}" stroke="${COLORS.line}" stroke-width="1.5" />
-      <rect x="0" y="0" width="250" height="34" rx="16" fill="${COLORS.tealDark}" />
-      <rect x="0" y="24" width="250" height="10" fill="${COLORS.tealDark}" />
-      <text x="125" y="22" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="700">OPEN DATES</text>
+    <svg width="255" height="165" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="255" height="165" rx="14" fill="${COLORS.white}" stroke="${COLORS.border}" stroke-width="1.5" />
+      <rect x="0" y="0" width="255" height="34" rx="14" fill="${COLORS.teal}" />
+      <rect x="0" y="24" width="255" height="12" fill="${COLORS.teal}" />
+      <text x="128" y="22" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">OPEN DATES</text>
       ${itemSvg}
     </svg>
   `;
@@ -331,20 +320,20 @@ function buildOpenDatesListSvg(ranges) {
 function buildCtaSvg() {
   return `
     <svg width="250" height="165" xmlns="http://www.w3.org/2000/svg">
-      <rect x="8" y="8" width="234" height="149" rx="28" fill="${COLORS.white}" stroke="${COLORS.gold}" stroke-width="4" />
-      <text x="125" y="60" font-size="24" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">Book Direct &amp;</text>
-      <text x="125" y="92" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" text-anchor="middle" font-weight="800">SAVE UP TO</text>
-      <text x="125" y="138" font-size="62" font-family="Georgia, serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="800">20%</text>
+      <rect x="6" y="8" width="238" height="149" rx="25" fill="${COLORS.white}" stroke="${COLORS.gold}" stroke-width="4" />
+      <text x="125" y="58" font-size="24" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">Book Direct &amp;</text>
+      <text x="125" y="90" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">SAVE UP TO</text>
+      <text x="125" y="138" font-size="64" font-family="Georgia, serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">20%</text>
     </svg>
   `;
 }
 
 function buildButtonSvg(label) {
   return `
-    <svg width="250" height="58" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="250" height="58" rx="14" fill="${COLORS.navy}" />
-      <rect x="2.5" y="2.5" width="245" height="53" rx="12" fill="none" stroke="${COLORS.gold}" stroke-width="3" />
-      <text x="125" y="37" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="700">${escapeXml(label)}</text>
+    <svg width="275" height="58" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="275" height="58" rx="12" fill="${COLORS.navy}" />
+      <rect x="2.5" y="2.5" width="270" height="53" rx="10" fill="none" stroke="${COLORS.gold}" stroke-width="3" />
+      <text x="138" y="37" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(label)}</text>
     </svg>
   `;
 }
@@ -352,26 +341,14 @@ function buildButtonSvg(label) {
 function buildOverlaySvg(post, openRangeText) {
   const propertyId = post.propertyId || post.shortId || "";
   const location = post.location || "";
-  const featureTitle = pickFeatureTitle(post);
-  const featureLine = getFeatureLine(post);
-  const facts = getFacts(post);
-  const titleLines = wrapText(post.propertyTitle || "", 30);
+  const featureTitle = getFeatureTitle(post);
+  const factsLine = getFactsLine(post);
+  const titleLines = wrapText(post.propertyTitle || "", 32, 2);
 
-  const titleTspans = titleLines
+  const titleSvg = titleLines
     .map((line, index) => {
-      const dy = index === 0 ? 0 : 28;
-      return `<tspan x="610" dy="${dy}">${escapeXml(line)}</tspan>`;
-    })
-    .join("");
-
-  const factSvg = facts
-    .map((fact, index) => {
-      const x = 610 + index * 128;
-
       return `
-        <circle cx="${x + 26}" cy="780" r="26" fill="${COLORS.lightBlue}" stroke="${COLORS.tealDark}" stroke-width="2" />
-        <text x="${x + 26}" y="788" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" text-anchor="middle" font-weight="800">${escapeXml(String(fact.value))}</text>
-        <text x="${x + 60}" y="774" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="800">${escapeXml(fact.label)}</text>
+        <text x="600" y="${675 + index * 34}" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(line)}</text>
       `;
     })
     .join("");
@@ -380,44 +357,55 @@ function buildOverlaySvg(post, openRangeText) {
     <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <rect x="0" y="0" width="${WIDTH}" height="${HEIGHT}" fill="${COLORS.bg}" />
 
-      <rect x="30" y="30" width="1020" height="470" rx="24" fill="${COLORS.white}" />
-      <rect x="30" y="30" width="1020" height="470" rx="24" fill="none" stroke="#d8d8d8" stroke-width="2" />
+      <rect x="30" y="28" width="1020" height="430" rx="24" fill="${COLORS.white}" />
+      <rect x="30" y="28" width="1020" height="430" rx="24" fill="none" stroke="#d7d7d7" stroke-width="2" />
 
-      <path d="M0 505 C220 545, 430 470, 650 510 C860 548, 975 498, 1080 520" fill="none" stroke="${COLORS.teal}" stroke-width="6" opacity="0.9"/>
+      <path d="M0 470 C 220 515, 420 450, 640 485 C 840 515, 980 475, 1080 495" fill="none" stroke="${COLORS.teal2}" stroke-width="6" opacity="0.9"/>
 
-      <path d="M34 34 L132 34 L132 155 L84 130 L34 155 Z" fill="${COLORS.navy}" />
-      <text x="83" y="62" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="#f3cd6c" text-anchor="middle" font-weight="700">PROPERTY ID</text>
-      <text x="83" y="112" font-size="27" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="800">${escapeXml(propertyId)}</text>
+      <path d="M36 34 L132 34 L132 150 L84 128 L36 150 Z" fill="${COLORS.navy}" />
+      <text x="84" y="62" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" text-anchor="middle" font-weight="900">PROPERTY ID</text>
+      <text x="84" y="111" font-size="30" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(propertyId)}</text>
 
-      <circle cx="545" cy="140" r="82" fill="${COLORS.white}" stroke="#bcc8d6" stroke-width="3" />
-      <circle cx="545" cy="140" r="72" fill="${COLORS.white}" stroke="${COLORS.gold}" stroke-width="2" opacity="0.55" />
-      <text x="545" y="122" font-size="18" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">OCEAN</text>
-      <text x="545" y="150" font-size="50" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="700">O</text>
-      <text x="545" y="174" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" text-anchor="middle" letter-spacing="2">VACATIONS</text>
+      <circle cx="535" cy="125" r="70" fill="${COLORS.white}" stroke="#c5ccd3" stroke-width="3" />
+      <text x="535" y="110" font-size="17" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-style="italic">OCEAN</text>
+      <text x="535" y="144" font-size="45" font-family="Georgia, serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">O</text>
+      <text x="535" y="168" font-size="14" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" letter-spacing="2">VACATIONS</text>
 
-      <text x="75" y="560" font-size="26" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">${escapeXml(location)}</text>
-      <text x="75" y="630" font-size="78" font-family="Georgia, serif" fill="${COLORS.navy}" font-weight="700">OPEN</text>
-      <text x="75" y="690" font-size="66" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="800">AVAILABILITY</text>
-      <text x="75" y="748" font-size="58" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">SPECIALS</text>
-      <path d="M74 764 L345 764" stroke="${COLORS.gold}" stroke-width="4" />
-      <text x="352" y="770" font-size="42" font-family="Georgia, serif" fill="${COLORS.gold}">✶</text>
+      <text x="66" y="560" font-size="27" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">${escapeXml(location)}</text>
+      <text x="66" y="630" font-size="80" font-family="Georgia, serif" fill="${COLORS.navy}" font-weight="900">OPEN</text>
+      <text x="66" y="695" font-size="64" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">AVAILABILITY</text>
+      <text x="66" y="760" font-size="58" font-family="Georgia, serif" fill="${COLORS.teal}" font-style="italic">SPECIALS</text>
+      <line x1="66" y1="780" x2="350" y2="780" stroke="${COLORS.gold}" stroke-width="4" />
+      <text x="358" y="790" font-size="45" font-family="Georgia, serif" fill="${COLORS.gold}">✶</text>
 
-      <rect x="610" y="560" width="380" height="44" rx="8" fill="${COLORS.navy}" />
-      <text x="800" y="590" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="800">${escapeXml(featureTitle)}</text>
+      <rect x="600" y="550" width="390" height="46" rx="7" fill="${COLORS.navy}" />
+      <text x="795" y="581" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(featureTitle)}</text>
 
-      <rect x="610" y="610" width="380" height="40" rx="8" fill="${COLORS.teal}" />
-      <text x="800" y="637" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="800">${escapeXml(featureLine)}</text>
+      <rect x="600" y="607" width="390" height="42" rx="7" fill="${COLORS.teal2}" />
+      <text x="795" y="635" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(factsLine)}</text>
 
-      <text x="610" y="686" font-size="28" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="800">${titleTspans}</text>
+      ${titleSvg}
 
-      ${factSvg}
+      <g transform="translate(600 755)">
+        <circle cx="31" cy="31" r="28" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
+        <text x="31" y="39" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.bedrooms || "-")}</text>
+        <text x="68" y="27" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Bedrooms</text>
 
-      <text x="74" y="1298" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="700">oceanvacationsmb.com</text>
-      <text x="400" y="1298" font-size="16" font-family="Georgia, serif" fill="${COLORS.text}" font-style="italic">Links in caption.</text>
-      <text x="810" y="1298" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="#7b8793">Availability subject to change</text>
+        <circle cx="185" cy="31" r="28" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
+        <text x="185" y="39" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.bathrooms || "-")}</text>
+        <text x="222" y="27" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Bathrooms</text>
 
-      <text x="610" y="830" font-size="17" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" font-weight="700">Open availability:</text>
-      <text x="610" y="854" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="800">${escapeXml(openRangeText)}</text>
+        <circle cx="345" cy="31" r="28" fill="${COLORS.white}" stroke="${COLORS.teal}" stroke-width="2"/>
+        <text x="345" y="39" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" text-anchor="middle" font-weight="900">${escapeXml(post.sleeps || "-")}</text>
+        <text x="382" y="27" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">Sleeps</text>
+      </g>
+
+      <text x="600" y="850" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.teal}" font-weight="900">Open availability:</text>
+      <text x="600" y="878" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="900">${escapeXml(openRangeText)}</text>
+
+      <text x="70" y="1295" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">oceanvacationsmb.com</text>
+      <text x="415" y="1295" font-size="16" font-family="Georgia, serif" fill="${COLORS.text}" font-style="italic">Links in caption.</text>
+      <text x="800" y="1295" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.grayText}">Availability subject to change</text>
     </svg>
   `;
 }
@@ -436,19 +424,19 @@ export async function createTemplateFlyer(post, scan) {
   const [
     mainPhoto,
     topRightPhoto,
-    middleRightPhoto,
-    bottomWidePhoto
+    bottomRightPhoto,
+    widePhoto
   ] = await Promise.all([
-    makePhotoTile(photoUrls[0], 575, 278),
-    makePhotoTile(photoUrls[1], 375, 135),
-    makePhotoTile(photoUrls[2], 375, 135),
-    makePhotoTile(photoUrls[3], 950, 145)
+    makePhotoTile(photoUrls[0], 590, 390),
+    makePhotoTile(photoUrls[1], 420, 190),
+    makePhotoTile(photoUrls[2], 420, 190),
+    makePhotoTile(photoUrls[3], 1010, 105)
   ]);
 
   const overlaySvg = buildOverlaySvg(post, openRangeText);
   const month1Svg = buildCalendarSvg(month1.year, month1.month, openSet, scan.from, scan.to);
   const month2Svg = buildCalendarSvg(month2.year, month2.month, openSet, scan.from, scan.to);
-  const openDatesSvg = buildOpenDatesListSvg(openRanges);
+  const openDatesSvg = buildOpenDatesSvg(openRanges);
   const ctaSvg = buildCtaSvg();
   const directButtonSvg = buildButtonSvg("DIRECT BOOKING");
   const airbnbButtonSvg = buildButtonSvg("AIRBNB");
@@ -468,18 +456,18 @@ export async function createTemplateFlyer(post, scan) {
       { input: Buffer.from(overlaySvg), top: 0, left: 0 },
 
       { input: mainPhoto, top: 40, left: 40 },
-      { input: topRightPhoto, top: 40, left: 635 },
-      { input: middleRightPhoto, top: 185, left: 635 },
-      { input: bottomWidePhoto, top: 335, left: 40 },
+      { input: topRightPhoto, top: 40, left: 630 },
+      { input: bottomRightPhoto, top: 240, left: 630 },
+      { input: widePhoto, top: 342, left: 40 },
 
-      { input: Buffer.from(month1Svg), top: 930, left: 40 },
-      { input: Buffer.from(month2Svg), top: 930, left: 315 },
-      { input: Buffer.from(openDatesSvg), top: 930, left: 590 },
-      { input: Buffer.from(ctaSvg), top: 930, left: 820 },
+      { input: Buffer.from(month1Svg), top: 935, left: 40 },
+      { input: Buffer.from(month2Svg), top: 935, left: 315 },
+      { input: Buffer.from(openDatesSvg), top: 935, left: 590 },
+      { input: Buffer.from(ctaSvg), top: 935, left: 835 },
 
-      { input: Buffer.from(directButtonSvg), top: 1220, left: 40 },
-      { input: Buffer.from(airbnbButtonSvg), top: 1220, left: 415 },
-      { input: Buffer.from(vrboButtonSvg), top: 1220, left: 790 }
+      { input: Buffer.from(directButtonSvg), top: 1215, left: 40 },
+      { input: Buffer.from(airbnbButtonSvg), top: 1215, left: 405 },
+      { input: Buffer.from(vrboButtonSvg), top: 1215, left: 770 }
     ])
     .png()
     .toFile(outputPath);
