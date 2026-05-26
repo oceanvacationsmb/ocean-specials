@@ -2,6 +2,7 @@ import axios from "axios";
 import sharp from "sharp";
 import os from "os";
 import path from "path";
+import { fileURLToPath } from "url";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -9,12 +10,11 @@ const HEIGHT = 1350;
 const COLORS = {
   bg: "#f8f4ec",
   navy: "#062f53",
-  navyDark: "#03243f",
-  teal: "#168c9d",
-  tealLight: "#37aebd",
+  teal: "#158f9f",
+  tealLight: "#39aebd",
   gold: "#d7b35f",
-  cream: "#fffaf0",
   white: "#ffffff",
+  cream: "#fffaf0",
   text: "#16324a",
   muted: "#e8edf0",
   red: "#e75d4f",
@@ -97,7 +97,7 @@ function getOpenRanges(post, limit = 4) {
     .map((special) => `${special.checkInNice} to ${special.checkOutNice}`);
 }
 
-function wrapText(text, maxCharsPerLine = 30, maxLines = 2) {
+function wrapText(text, maxCharsPerLine = 31, maxLines = 2) {
   const words = String(text || "").split(/\s+/).filter(Boolean);
   const lines = [];
   let current = "";
@@ -113,7 +113,9 @@ function wrapText(text, maxCharsPerLine = 30, maxLines = 2) {
     }
   }
 
-  if (current) lines.push(current);
+  if (current) {
+    lines.push(current);
+  }
 
   return lines.slice(0, maxLines);
 }
@@ -170,7 +172,7 @@ async function makeMainCollageImage(url) {
 
   return sharp(buffer)
     .rotate()
-    .resize(1020, 430, {
+    .resize(1020, 420, {
       fit: "cover",
       position: "center"
     })
