@@ -43,7 +43,7 @@ const DEFAULT_FACEBOOK_GROUPS = [
 
 function getScanOptions(req) {
   return {
-    days: req.query.days || req.body?.days || 15
+    days: req.query.days || req.body?.days || 60
   };
 }
 
