@@ -29,75 +29,72 @@ function niceDate(ymd) {
 }
 
 function normalizeSellingPoints(value, sleeps) {
-  if (!value) {
-    return [`Sleeps ${sleeps}`];
-  }
-
   if (Array.isArray(value)) {
     return value.filter(Boolean);
   }
 
-  return String(value)
-    .split("•")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(/\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  const points = [];
+
+  if (sleeps) {
+    points.push(`Sleeps ${sleeps}`);
+  }
+
+  return points;
 }
 
 function addOrUpdateParams(url, params) {
   if (!url) return "";
 
   try {
-    const parsedUrl = new URL(url.trim());
+    const parsed = new URL(url);
 
-    Object.entries(params).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null && value !== "") {
-        parsedUrl.searchParams.set(key, String(value));
+        parsed.searchParams.set(key, value);
       }
-    });
+    }
 
-    return parsedUrl.toString();
+    return parsed.toString();
   } catch (error) {
     return url;
   }
 }
 
 function buildGenericLinks(property) {
+  const directBookingUrl =
+    property.directBookingUrl ||
+    `https://oceanvacationsmb.guestybookings.com/properties/${property.listingId}`;
+
   return {
-    directLink:
-      property.directBookingUrl ||
-      `https://oceanvacationsmb.guestybookings.com/en/properties/${property.listingId}`,
-    airbnbLink: property.airbnbUrl || "",
-    vrboLink: property.vrboUrl || ""
+    direct: directBookingUrl,
+    airbnb: property.airbnbUrl || "",
+    vrbo: property.vrboUrl || ""
   };
 }
 
 function buildDatedLinks(property, checkIn, checkOut) {
-  const maxGuests = Number(property.sleeps || 1);
-  const airbnbGuests = Math.min(maxGuests, 16);
   const generic = buildGenericLinks(property);
 
   return {
-    directLink: generic.directLink
-      ? addOrUpdateParams(generic.directLink, {
-          minOccupancy: maxGuests,
-          checkIn,
-          checkOut
-        })
-      : "",
-    airbnbLink: generic.airbnbLink
-      ? addOrUpdateParams(generic.airbnbLink, {
-          check_in: checkIn,
-          check_out: checkOut,
-          adults: airbnbGuests
-        })
-      : "",
-    vrboLink: generic.vrboLink
-      ? addOrUpdateParams(generic.vrboLink, {
-          startDate: checkIn,
-          endDate: checkOut,
-          adults: maxGuests
-        })
-      : ""
+    direct: addOrUpdateParams(generic.direct, {
+      checkIn,
+      checkOut
+    }),
+    airbnb: addOrUpdateParams(generic.airbnb, {
+      check_in: checkIn,
+      check_out: checkOut
+    }),
+    vrbo: addOrUpdateParams(generic.vrbo, {
+      arrival: checkIn,
+      departure: checkOut
+    })
   };
 }
 
@@ -120,17 +117,13 @@ function buildFactsLine(property) {
 }
 
 function choosePostLinks(property, specials) {
-  const generic = buildGenericLinks(property);
+  const sorted = [...specials].sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 
-  if (specials.length === 1 && specials[0].nights <= 4) {
-    return {
-      directLink: specials[0].directLink || generic.directLink,
-      airbnbLink: specials[0].airbnbLink || generic.airbnbLink,
-      vrboLink: specials[0].vrboLink || generic.vrboLink
-    };
+  if (sorted.length === 1 && sorted[0].nights <= 4) {
+    return buildDatedLinks(property, sorted[0].checkIn, sorted[0].checkOut);
   }
 
-  return generic;
+  return buildGenericLinks(property);
 }
 
 function getOpenRange(specials) {
@@ -147,59 +140,101 @@ function getOpenRange(specials) {
   return `${sorted[0].checkInNice} to ${sorted[sorted.length - 1].checkOutNice}`;
 }
 
+function buildLinksSection(postLinks, flyerImageUrl) {
+  const lines = [];
+
+  if (postLinks.airbnb) {
+    lines.push(`Airbnb:
+${postLinks.airbnb}`);
+  }
+
+  if (postLinks.vrbo) {
+    lines.push(`VRBO:
+${postLinks.vrbo}`);
+  }
+
+  if (postLinks.direct) {
+    lines.push(`Book direct and save up to 20%:
+${postLinks.direct}`);
+  }
+
+  if (flyerImageUrl) {
+    lines.push(flyerImageUrl);
+  }
+
+  return lines.join("\n\n");
+}
+
 function createPropertyPost(property, specials) {
-  const sorted = [...specials].sort((a, b) => a.checkIn.localeCompare(b.checkIn));
-  const openRange = getOpenRange(sorted);
+  const sortedSpecials = [...specials].sort((a, b) =>
+    a.checkIn.localeCompare(b.checkIn)
+  );
+
+  const openRange = getOpenRange(sortedSpecials);
   const facts = buildFactsLine(property);
-  const links = choosePostLinks(property, sorted);
+  const postLinks = choosePostLinks(property, sortedSpecials);
+  const linksSection = buildLinksSection(postLinks, property.flyerImageUrl);
 
-  const airbnbLine = links.airbnbLink
-    ? `\nAirbnb:\n${links.airbnbLink}\n`
-    : "";
-
-  const vrboLine = links.vrboLink
-    ? `\nVRBO:\n${links.vrboLink}\n`
-    : "";
-
-  return `LAST MINUTE DEALS IN "${property.location}"
+  const message = `LAST MINUTE DEALS IN "${property.location}"
 
 Open availability between ${openRange}
 
-${property.title}
+${property.propertyTitle}
 ${facts}
 
-Book direct and save up to 20%:
-${links.directLink}${airbnbLine}${vrboLine}`;
+${linksSection}`;
+
+  return {
+    propertyId: property.propertyId,
+    listingId: property.listingId,
+    propertyTitle: property.propertyTitle,
+    location: property.location,
+    bedrooms: property.bedrooms,
+    bathrooms: property.bathrooms,
+    sleeps: property.sleeps,
+
+    photoUrl: property.photoUrl,
+    photoUrls: property.photoUrls || [],
+    flyerImageUrl: property.flyerImageUrl || "",
+
+    directBookingUrl: property.directBookingUrl,
+    airbnbUrl: property.airbnbUrl,
+    vrboUrl: property.vrboUrl,
+
+    postDirectLink: postLinks.direct,
+    postAirbnbLink: postLinks.airbnb,
+    postVrboLink: postLinks.vrbo,
+
+    specials: sortedSpecials,
+    message
+  };
 }
 
 function convertManagedProperty(property) {
-  const directBookingUrl =
-    property.directBookingUrl ||
-    `https://oceanvacationsmb.guestybookings.com/en/properties/${property.listingId}`;
-
   return {
-    id: property.shortId || property.id,
-    title: property.title,
     listingId: property.listingId,
+    propertyId: property.shortId,
+    propertyTitle: property.title,
+    location: property.city || "North Myrtle Beach",
+    bedrooms: property.bedrooms,
+    bathrooms: property.bathrooms,
+    sleeps: property.sleeps,
 
-    bedrooms: Number(property.bedrooms || 0) || null,
-    bathrooms: Number(property.bathrooms || 0) || null,
-    sleeps: Number(property.sleeps || 0) || null,
-    location: property.city || property.location || "",
+    photoUrl: property.picture,
+    photoUrls: property.pictures || [],
 
     sellingPoints: normalizeSellingPoints(property.sellingPoints, property.sleeps),
 
-    photoUrl: property.picture || property.photoUrl || "",
+    directBookingUrl: property.directBookingUrl,
+    airbnbUrl: property.airbnbUrl,
+    vrboUrl: property.vrboUrl,
+    flyerImageUrl: property.flyerImageUrl || "",
 
-    directBookingUrl,
-    airbnbUrl: property.airbnbUrl || "",
-    vrboUrl: property.vrboUrl || "",
+    minNights: Number(property.minNights || 1),
+    maxNights: Number(property.maxNights || 30),
+    scanDays: Number(property.scanDays || 15),
 
-    minNights: 1,
-    maxNights: 30,
-    scanDays: Number(property.scanDays ?? 15),
-
-    active: property.active === true
+    active: property.active !== false
   };
 }
 
@@ -210,151 +245,87 @@ async function scanProperty(property, scanFromYmd, scanToYmd) {
     scanToYmd
   );
 
-  const maxScanNights = Math.max(1, diffDays(scanFromYmd, scanToYmd));
-  const gaps = findAvailableGaps(calendar, 1, maxScanNights);
+  const calendarDays =
+    calendar.days ||
+    calendar.results ||
+    calendar.data ||
+    calendar.calendar ||
+    calendar;
 
-  const specials = gaps.map((gap) => {
-    const useExactLinks = gap.nights <= 4;
-    const links = useExactLinks
-      ? buildDatedLinks(property, gap.checkIn, gap.checkOut)
-      : buildGenericLinks(property);
+  const gaps = findAvailableGaps(
+    calendarDays,
+    property.minNights,
+    property.maxNights
+  );
 
-    return {
-      ok: true,
-      propertyId: property.id,
-      propertyTitle: property.title,
-      listingId: property.listingId,
-
-      location: property.location,
-      bedrooms: property.bedrooms,
-      bathrooms: property.bathrooms,
-      sleeps: property.sleeps,
-      sellingPoints: property.sellingPoints || [],
-
-      photoUrl: property.photoUrl || "",
-
-      checkIn: gap.checkIn,
-      checkOut: gap.checkOut,
-      checkInNice: niceDate(gap.checkIn),
-      checkOutNice: niceDate(gap.checkOut),
-      nights: gap.nights,
-
-      directLink: links.directLink,
-      airbnbLink: links.airbnbLink,
-      vrboLink: links.vrboLink,
-
-      directBookingUrl: property.directBookingUrl || "",
-      airbnbUrl: property.airbnbUrl || "",
-      vrboUrl: property.vrboUrl || ""
-    };
-  });
-
-  const postLinks = choosePostLinks(property, specials);
-
-  const propertyPost =
-    specials.length > 0
-      ? {
-          ok: true,
-          propertyId: property.id,
-          propertyTitle: property.title,
-          listingId: property.listingId,
-          location: property.location,
-          bedrooms: property.bedrooms,
-          bathrooms: property.bathrooms,
-          sleeps: property.sleeps,
-          sellingPoints: property.sellingPoints || [],
-          photoUrl: property.photoUrl || "",
-
-          directBookingUrl: property.directBookingUrl || "",
-          airbnbUrl: property.airbnbUrl || "",
-          vrboUrl: property.vrboUrl || "",
-
-          postDirectLink: postLinks.directLink,
-          postAirbnbLink: postLinks.airbnbLink,
-          postVrboLink: postLinks.vrboLink,
-
-          openingsCount: specials.length,
-          firstCheckInNice: specials[0].checkInNice,
-          lastCheckOutNice: specials[specials.length - 1].checkOutNice,
-          facebookText: createPropertyPost(property, specials),
-          specials
-        }
-      : null;
+  const specials = gaps.map((gap) => ({
+    ...gap,
+    nights: gap.nights || diffDays(gap.checkIn, gap.checkOut),
+    checkInNice: niceDate(gap.checkIn),
+    checkOutNice: niceDate(gap.checkOut)
+  }));
 
   return {
-    propertyId: property.id,
-    propertyTitle: property.title,
-    listingId: property.listingId,
-    scanFrom: scanFromYmd,
-    scanTo: scanToYmd,
-    gapsFound: gaps.length,
-    specials,
-    propertyPost
+    property,
+    specials
   };
 }
 
 export async function generateSpecials(selectedPropertyIds = [], options = {}) {
   const today = new Date();
-  const todayYmd = toYmd(today);
+  const scanFromYmd = options.from || toYmd(today);
 
-  const scanFromYmd = options.scanFrom || todayYmd;
-  const scanToYmd = options.scanTo || toYmd(addDays(today, 15));
+  const defaultScanDays = Number(options.days || 15);
+  const scanToYmd =
+    options.to ||
+    toYmd(addDays(new Date(scanFromYmd + "T00:00:00"), defaultScanDays));
 
   const managedProperties = await getManagedProperties();
 
-  const activeProperties = managedProperties
-    .map(convertManagedProperty)
+  const selectedSet = new Set(
+    Array.isArray(selectedPropertyIds)
+      ? selectedPropertyIds.filter(Boolean)
+      : []
+  );
+
+  const properties = managedProperties
+    .filter((property) => property.active !== false)
     .filter((property) => {
-      if (!property.active) return false;
-
-      if (selectedPropertyIds.length > 0) {
-        return (
-          selectedPropertyIds.includes(property.id) ||
-          selectedPropertyIds.includes(property.listingId)
-        );
-      }
-
-      return true;
-    });
+      if (!selectedSet.size) return true;
+      return selectedSet.has(property.listingId);
+    })
+    .map(convertManagedProperty);
 
   const propertyResults = [];
-  const allSpecials = [];
-  const propertyPosts = [];
 
-  for (const property of activeProperties) {
+  for (const property of properties) {
     try {
       const result = await scanProperty(property, scanFromYmd, scanToYmd);
 
-      propertyResults.push(result);
-      allSpecials.push(...result.specials);
-
-      if (result.propertyPost) {
-        propertyPosts.push(result.propertyPost);
+      if (result.specials.length) {
+        propertyResults.push(result);
       }
     } catch (error) {
       propertyResults.push({
-        propertyId: property.id,
-        propertyTitle: property.title,
-        listingId: property.listingId,
-        error: error.message,
-        details: error.response?.data || null,
+        property,
         specials: [],
-        propertyPost: null
+        error: error.message
       });
     }
   }
+
+  const propertyPosts = propertyResults
+    .filter((result) => result.specials.length)
+    .map((result) => createPropertyPost(result.property, result.specials));
 
   return {
     ok: true,
     scan: {
       from: scanFromYmd,
-      to: scanToYmd,
-      propertiesScanned: activeProperties.length,
-      specialsCreated: allSpecials.length,
-      propertyPostsCreated: propertyPosts.length
+      to: scanToYmd
     },
-    propertyResults,
-    specials: allSpecials,
-    propertyPosts
+    count: propertyPosts.length,
+    propertyPosts,
+    results: propertyResults
   };
 }
