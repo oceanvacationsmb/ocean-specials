@@ -21,18 +21,45 @@ function getRawListings(data) {
   return Array.isArray(rawListings) ? rawListings : [];
 }
 
-function getPicture(listing) {
+function getPictureFromValue(value) {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    return value;
+  }
+
   return (
-    listing.picture?.large ||
-    listing.picture?.regular ||
-    listing.picture?.thumbnail ||
-    listing.pictures?.[0]?.large ||
-    listing.pictures?.[0]?.regular ||
-    listing.pictures?.[0]?.thumbnail ||
-    listing.pictures?.[0]?.url ||
-    listing.picture ||
+    value.large ||
+    value.regular ||
+    value.original ||
+    value.thumbnail ||
+    value.url ||
     ""
   );
+}
+
+function getPicture(listing) {
+  return (
+    getPictureFromValue(listing.picture) ||
+    getPictureFromValue(listing.pictures?.[0]) ||
+    ""
+  );
+}
+
+function getPictures(listing) {
+  const urls = [];
+
+  const main = getPicture(listing);
+  if (main) urls.push(main);
+
+  if (Array.isArray(listing.pictures)) {
+    for (const picture of listing.pictures) {
+      const url = getPictureFromValue(picture);
+      if (url) urls.push(url);
+    }
+  }
+
+  return [...new Set(urls)].slice(0, 10);
 }
 
 function getCity(listing) {
@@ -118,6 +145,7 @@ async function getSavedSettingsFromDatabase() {
       direct_booking_url,
       airbnb_url,
       vrbo_url,
+      flyer_image_url,
       min_nights,
       max_nights,
       scan_days
@@ -134,6 +162,7 @@ async function getSavedSettingsFromDatabase() {
       directBookingUrl: row.direct_booking_url || "",
       airbnbUrl: row.airbnb_url || "",
       vrboUrl: row.vrbo_url || "",
+      flyerImageUrl: row.flyer_image_url || "",
       minNights: Number(row.min_nights || 1),
       maxNights: Number(row.max_nights || 30),
       scanDays: Number(row.scan_days || 15)
@@ -162,6 +191,7 @@ export async function getManagedProperties() {
 
     const title = getTitle(listing);
     const shortId = saved.shortId || buildDefaultShortId(title, listingId);
+    const pictures = getPictures(listing);
 
     return {
       listingId,
@@ -171,7 +201,8 @@ export async function getManagedProperties() {
       bedrooms: getBedrooms(listing),
       bathrooms: getBathrooms(listing),
       sleeps: getSleeps(listing),
-      picture: getPicture(listing),
+      picture: pictures[0] || "",
+      pictures,
 
       active: saved.active !== false,
 
@@ -179,6 +210,7 @@ export async function getManagedProperties() {
       directBookingUrl: saved.directBookingUrl || "",
       airbnbUrl: saved.airbnbUrl || "",
       vrboUrl: saved.vrboUrl || "",
+      flyerImageUrl: saved.flyerImageUrl || "",
 
       minNights: Number(saved.minNights ?? 1),
       maxNights: Number(saved.maxNights ?? 30),
@@ -195,6 +227,7 @@ export async function saveManagedProperty(listingId, data) {
     directBookingUrl: data.directBookingUrl || "",
     airbnbUrl: data.airbnbUrl || "",
     vrboUrl: data.vrboUrl || "",
+    flyerImageUrl: data.flyerImageUrl || "",
     minNights: Number(data.minNights ?? 1),
     maxNights: Number(data.maxNights ?? 30),
     scanDays: Number(data.scanDays ?? 15)
@@ -213,12 +246,13 @@ export async function saveManagedProperty(listingId, data) {
           direct_booking_url,
           airbnb_url,
           vrbo_url,
+          flyer_image_url,
           min_nights,
           max_nights,
           scan_days,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
         ON CONFLICT (listing_id)
         DO UPDATE SET
           short_id = EXCLUDED.short_id,
@@ -227,6 +261,7 @@ export async function saveManagedProperty(listingId, data) {
           direct_booking_url = EXCLUDED.direct_booking_url,
           airbnb_url = EXCLUDED.airbnb_url,
           vrbo_url = EXCLUDED.vrbo_url,
+          flyer_image_url = EXCLUDED.flyer_image_url,
           min_nights = EXCLUDED.min_nights,
           max_nights = EXCLUDED.max_nights,
           scan_days = EXCLUDED.scan_days,
@@ -240,6 +275,7 @@ export async function saveManagedProperty(listingId, data) {
         savedData.directBookingUrl,
         savedData.airbnbUrl,
         savedData.vrboUrl,
+        savedData.flyerImageUrl,
         savedData.minNights,
         savedData.maxNights,
         savedData.scanDays
