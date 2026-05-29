@@ -3,7 +3,9 @@ import {
   getListingCalendar
 } from "./guestyApi.js";
 
-import * as db from "./db.js";
+import {
+  getManagedProperties
+} from "./propertyManager.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -54,24 +56,8 @@ function formatDate(date) {
 }
 
 async function loadSavedProperties() {
-  const possibleFunctions = [
-    "getManagedProperties",
-    "getAllManagedProperties",
-    "getProperties",
-    "getPropertySettings",
-    "getAllPropertySettings",
-    "listManagedProperties",
-    "listProperties"
-  ];
-
-  for (const name of possibleFunctions) {
-    if (typeof db[name] === "function") {
-      const rows = await db[name]();
-      return Array.isArray(rows) ? rows : [];
-    }
-  }
-
-  return [];
+  const rows = await getManagedProperties();
+  return Array.isArray(rows) ? rows : [];
 }
 
 function normalizeListingsResponse(data) {
@@ -323,16 +309,41 @@ function formatGapTitle(gap) {
   return `Available now for ${gap.nights} ${gap.nights === 1 ? "night" : "nights"} between ${start} and ${end}:`;
 }
 
+function getListingImageUrl(listing) {
+  return cleanText(
+    listing.picture?.regular ||
+    listing.picture?.large ||
+    listing.picture?.thumbnail ||
+    listing.pictures?.[0]?.original ||
+    listing.pictures?.[0]?.regular ||
+    listing.pictures?.[0]?.thumbnail ||
+    ""
+  );
+}
+
 function buildPost({ listing, savedProperty, gaps }) {
   const listingId = getListingId(listing);
   const location = getLocation(listing, savedProperty);
   const factsLine = getFactsLine(listing);
 
-  const airbnbUrl = cleanText(savedProperty.airbnb_url || savedProperty.airbnbUrl);
-  const vrboUrl = cleanText(savedProperty.vrbo_url || savedProperty.vrboUrl);
-  const flyerUrl = cleanText(savedProperty.flyer_url || savedProperty.flyerUrl);
+  const airbnbUrl = cleanText(
+    savedProperty.airbnbUrl ||
+    savedProperty.airbnb_url ||
+    savedProperty.airbnb ||
+    ""
+  );
+
+  const vrboUrl = cleanText(
+    savedProperty.vrboUrl ||
+    savedProperty.vrbo_url ||
+    savedProperty.vrbo ||
+    ""
+  );
+
+  const imageUrl = getListingImageUrl(listing);
+
   const directUrl =
-    cleanText(savedProperty.direct_url || savedProperty.directUrl) ||
+    cleanText(savedProperty.directUrl || savedProperty.direct_url) ||
     makeDirectUrl(listingId);
 
   const lines = [];
@@ -364,9 +375,9 @@ function buildPost({ listing, savedProperty, gaps }) {
   lines.push(directUrl);
   lines.push("");
 
-  if (flyerUrl) {
-    lines.push("Flyer:");
-    lines.push(flyerUrl);
+  if (imageUrl) {
+    lines.push("Image:");
+    lines.push(imageUrl);
   }
 
   return lines.join("\n").trim();
@@ -377,12 +388,12 @@ function mergeListingWithSavedSettings(listing, savedProperties) {
   const shortId = getPropertyShortId(listing);
 
   const saved =
-    savedProperties.find((item) => item.listing_id === listingId) ||
     savedProperties.find((item) => item.listingId === listingId) ||
-    savedProperties.find((item) => item.property_id === listingId) ||
+    savedProperties.find((item) => item.listing_id === listingId) ||
     savedProperties.find((item) => item.propertyId === listingId) ||
-    savedProperties.find((item) => item.short_id === shortId) ||
+    savedProperties.find((item) => item.property_id === listingId) ||
     savedProperties.find((item) => item.shortId === shortId) ||
+    savedProperties.find((item) => item.short_id === shortId) ||
     {};
 
   return {
@@ -413,12 +424,15 @@ async function scanProperty(property, scanFrom, scanTo) {
       listingId,
       shortId,
       title: listing.title || listing.nickname || shortId,
+      propertyTitle: listing.title || listing.nickname || shortId,
+      propertyId: shortId,
       specials: gaps,
       gaps,
       error: null,
       calendarDaysCount: calendarDays.length,
       availableDaysCount: calendarDays.filter((day) => isAvailableCalendarDay(day)).length,
       firstCalendarDay: calendarDays[0] || null,
+      imageUrl: getListingImageUrl(listing),
       post: gaps.length
         ? buildPost({
             listing,
@@ -432,12 +446,15 @@ async function scanProperty(property, scanFrom, scanTo) {
       listingId,
       shortId,
       title: listing.title || listing.nickname || shortId,
+      propertyTitle: listing.title || listing.nickname || shortId,
+      propertyId: shortId,
       specials: [],
       gaps: [],
       error: error.message || "Calendar scan failed",
       calendarDaysCount: 0,
       availableDaysCount: 0,
       firstCalendarDay: null,
+      imageUrl: getListingImageUrl(listing),
       post: ""
     };
   }
@@ -475,6 +492,7 @@ export async function generateSpecials() {
       propertyId: result.shortId,
       specials: result.specials,
       gaps: result.gaps,
+      imageUrl: result.imageUrl,
       message: result.post,
       post: result.post
     }));
