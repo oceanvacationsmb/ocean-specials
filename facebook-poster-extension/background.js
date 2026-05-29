@@ -1,6 +1,4 @@
-const pendingPostsByTabId = new Map();
 const postingWindowIds = new Set();
-const filledTabIds = new Set();
 
 function cleanGroups(groups) {
   if (!Array.isArray(groups)) {
@@ -24,7 +22,7 @@ async function getScreenArea() {
       return primary.workArea;
     }
   } catch (error) {
-    // fallback below
+    // fallback
   }
 
   return {
@@ -59,41 +57,14 @@ async function getGridPosition(index, total) {
   };
 }
 
-async function sendFillMessage(tabId, message, attempt = 1) {
-  if (filledTabIds.has(tabId)) {
-    return;
-  }
-
-  try {
-    const response = await chrome.tabs.sendMessage(tabId, {
-      type: "FILL_FACEBOOK_POST",
-      message
-    });
-
-    if (response?.ok) {
-      filledTabIds.add(tabId);
-    }
-  } catch (error) {
-    if (attempt < 8 && !filledTabIds.has(tabId)) {
-      setTimeout(() => {
-        sendFillMessage(tabId, message, attempt + 1);
-      }, 1400);
-    }
-  }
-}
-
-async function openPostingWindows(message, groups) {
-  pendingPostsByTabId.clear();
-  filledTabIds.clear();
-
+async function openGroupWindows(groups) {
   const clean = cleanGroups(groups);
 
   for (let i = 0; i < clean.length; i++) {
-    const url = clean[i];
     const pos = await getGridPosition(i, clean.length);
 
     const createdWindow = await chrome.windows.create({
-      url,
+      url: clean[i],
       type: "popup",
       focused: i === 0,
       left: pos.left,
@@ -105,12 +76,6 @@ async function openPostingWindows(message, groups) {
     if (createdWindow?.id) {
       postingWindowIds.add(createdWindow.id);
     }
-
-    const tabId = createdWindow?.tabs?.[0]?.id;
-
-    if (tabId) {
-      pendingPostsByTabId.set(tabId, message);
-    }
   }
 }
 
@@ -118,8 +83,6 @@ async function closePostingWindows() {
   const ids = Array.from(postingWindowIds);
 
   postingWindowIds.clear();
-  pendingPostsByTabId.clear();
-  filledTabIds.clear();
 
   for (const windowId of ids) {
     try {
@@ -132,28 +95,7 @@ async function closePostingWindows() {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request?.type === "START_FB_POSTING") {
-    openPostingWindows(
-      request.payload?.message || "",
-      request.payload?.groups || []
-    );
-
-    sendResponse({
-      ok: true
-    });
-
-    return true;
-  }
-
-  if (request?.type === "FB_CONTENT_READY") {
-    const tabId = sender?.tab?.id;
-
-    if (tabId && pendingPostsByTabId.has(tabId) && !filledTabIds.has(tabId)) {
-      const message = pendingPostsByTabId.get(tabId);
-
-      setTimeout(() => {
-        sendFillMessage(tabId, message);
-      }, 1800);
-    }
+    openGroupWindows(request.payload?.groups || []);
 
     sendResponse({
       ok: true
