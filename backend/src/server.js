@@ -97,6 +97,12 @@ function pageShell(title, body) {
             gap: 14px;
           }
 
+          .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+          }
+
           label {
             display: block;
             font-weight: 700;
@@ -112,6 +118,10 @@ function pageShell(title, body) {
             border: 1px solid #cbd5e1;
             border-radius: 8px;
             font-size: 14px;
+          }
+
+          textarea {
+            min-height: 120px;
           }
 
           button {
@@ -157,7 +167,7 @@ function pageShell(title, body) {
 
           .postbox {
             width: 100%;
-            min-height: 280px;
+            min-height: 290px;
             font-family: Arial, Helvetica, sans-serif;
             font-size: 15px;
           }
@@ -175,6 +185,7 @@ function pageShell(title, body) {
           @media (max-width: 850px) {
             .grid,
             .grid-3,
+            .grid-4,
             .property-header {
               grid-template-columns: 1fr;
             }
@@ -449,124 +460,74 @@ app.get("/properties", (req, res) => {
           function renderProperty(property) {
             const id = property.listingId;
 
-            return \`
-              <div class="card">
-                <div class="property-header">
-                  <img src="\${escapeHtml(property.picture || "")}" />
-                  <div>
-                    <h3>\${escapeHtml(property.title || "Untitled Property")}</h3>
-                    <div class="small">Listing ID: \${escapeHtml(property.listingId)}</div>
-                    <div class="small">City: \${escapeHtml(property.city || "")}</div>
-                    <div class="small">
-                      \${escapeHtml(property.bedrooms || "")} Bedrooms •
-                      \${escapeHtml(property.bathrooms || "")} Bathrooms •
-                      Sleeps \${escapeHtml(property.sleeps || "")}
-                    </div>
-                    <div class="small">
-                      Direct booking URL is automatic:
-                      https://oceanvacationsmb.guestybookings.com/properties/\${escapeHtml(property.listingId)}
-                    </div>
-                  </div>
-                </div>
-
-                <br />
-
-                <div class="grid-3">
-                  <div>
-                    <label>Active</label>
-                    <input
-                      id="active-\${escapeHtml(id)}"
-                      type="checkbox"
-                      \${property.active !== false ? "checked" : ""}
-                      style="width:auto;"
-                    />
-                  </div>
-
-                  <div>
-                    <label>Property Short ID</label>
-                    <input
-                      id="shortId-\${escapeHtml(id)}"
-                      value="\${escapeHtml(property.shortId || "")}"
-                      placeholder="3104-1"
-                    />
-                  </div>
-
-                  <div>
-                    <label>Scan Days</label>
-                    <input
-                      id="scanDays-\${escapeHtml(id)}"
-                      type="number"
-                      value="\${escapeHtml(property.scanDays || 15)}"
-                    />
-                  </div>
-                </div>
-
-                <br />
-
-                <div class="grid">
-                  <div>
-                    <label>Min Nights</label>
-                    <input
-                      id="minNights-\${escapeHtml(id)}"
-                      type="number"
-                      value="\${escapeHtml(property.minNights || 1)}"
-                    />
-                  </div>
-
-                  <div>
-                    <label>Max Nights</label>
-                    <input
-                      id="maxNights-\${escapeHtml(id)}"
-                      type="number"
-                      value="\${escapeHtml(property.maxNights || 30)}"
-                    />
-                  </div>
-                </div>
-
-                <br />
-
-                <div class="grid">
-                  <div>
-                    <label>Airbnb URL</label>
-                    <input
-                      id="airbnbUrl-\${escapeHtml(id)}"
-                      value="\${escapeHtml(property.airbnbUrl || "")}"
-                      placeholder="https://www.airbnb.com/rooms/..."
-                    />
-                  </div>
-
-                  <div>
-                    <label>VRBO URL</label>
-                    <input
-                      id="vrboUrl-\${escapeHtml(id)}"
-                      value="\${escapeHtml(property.vrboUrl || "")}"
-                      placeholder="https://www.vrbo.com/..."
-                    />
-                  </div>
-                </div>
-
-                <br />
-
-                <div>
-                  <label>Flyer Image URL from Cloudinary</label>
-                  <input
-                    id="flyerImageUrl-\${escapeHtml(id)}"
-                    value="\${escapeHtml(property.flyerImageUrl || "")}"
-                    placeholder="https://res.cloudinary.com/.../image/upload/..."
-                  />
-                  <div class="small">
-                    This image URL will be added at the end of the generated post.
-                  </div>
-                </div>
-
-                <br />
-
-                <div class="row">
-                  <button onclick="saveProperty('\${escapeHtml(id)}')">Save Property</button>
-                  <span id="saveStatus-\${escapeHtml(id)}"></span>
-                </div>
-              </div>
-            \`;
+            return ''
+              + '<div class="card">'
+              + '  <div class="property-header">'
+              + '    <img src="' + escapeHtml(property.picture || "") + '" />'
+              + '    <div>'
+              + '      <h3>' + escapeHtml(property.title || "Untitled Property") + '</h3>'
+              + '      <div class="small">Listing ID: ' + escapeHtml(property.listingId) + '</div>'
+              + '      <div class="small">City: ' + escapeHtml(property.city || "") + '</div>'
+              + '      <div class="small">'
+              +          escapeHtml(property.bedrooms || "") + ' Bedrooms • '
+              +          escapeHtml(property.bathrooms || "") + ' Bathrooms • '
+              +          'Sleeps ' + escapeHtml(property.sleeps || "")
+              + '      </div>'
+              + '      <div class="small">'
+              + '        Direct booking URL is automatic: '
+              + '        https://oceanvacationsmb.guestybookings.com/properties/' + escapeHtml(property.listingId)
+              + '      </div>'
+              + '    </div>'
+              + '  </div>'
+              + '  <br />'
+              + '  <div class="grid-3">'
+              + '    <div>'
+              + '      <label>Active</label>'
+              + '      <input id="active-' + escapeHtml(id) + '" type="checkbox" ' + (property.active !== false ? "checked" : "") + ' style="width:auto;" />'
+              + '    </div>'
+              + '    <div>'
+              + '      <label>Property Short ID</label>'
+              + '      <input id="shortId-' + escapeHtml(id) + '" value="' + escapeHtml(property.shortId || "") + '" placeholder="3104-1" />'
+              + '    </div>'
+              + '    <div>'
+              + '      <label>Scan Days</label>'
+              + '      <input id="scanDays-' + escapeHtml(id) + '" type="number" value="' + escapeHtml(property.scanDays || 15) + '" />'
+              + '    </div>'
+              + '  </div>'
+              + '  <br />'
+              + '  <div class="grid">'
+              + '    <div>'
+              + '      <label>Min Nights</label>'
+              + '      <input id="minNights-' + escapeHtml(id) + '" type="number" value="' + escapeHtml(property.minNights || 1) + '" />'
+              + '    </div>'
+              + '    <div>'
+              + '      <label>Max Nights</label>'
+              + '      <input id="maxNights-' + escapeHtml(id) + '" type="number" value="' + escapeHtml(property.maxNights || 30) + '" />'
+              + '    </div>'
+              + '  </div>'
+              + '  <br />'
+              + '  <div class="grid">'
+              + '    <div>'
+              + '      <label>Airbnb URL</label>'
+              + '      <input id="airbnbUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.airbnbUrl || "") + '" placeholder="https://www.airbnb.com/rooms/..." />'
+              + '    </div>'
+              + '    <div>'
+              + '      <label>VRBO URL</label>'
+              + '      <input id="vrboUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.vrboUrl || "") + '" placeholder="https://www.vrbo.com/..." />'
+              + '    </div>'
+              + '  </div>'
+              + '  <br />'
+              + '  <div>'
+              + '    <label>Flyer Image URL from Cloudinary</label>'
+              + '    <input id="flyerImageUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.flyerImageUrl || "") + '" placeholder="https://res.cloudinary.com/.../image/upload/..." />'
+              + '    <div class="small">This image URL will be added at the end of the generated post.</div>'
+              + '  </div>'
+              + '  <br />'
+              + '  <div class="row">'
+              + '    <button onclick="saveProperty(\\'' + escapeHtml(id) + '\\')">Save Property</button>'
+              + '    <span id="saveStatus-' + escapeHtml(id) + '"></span>'
+              + '  </div>'
+              + '</div>';
           }
 
           async function loadProperties() {
@@ -603,10 +564,25 @@ app.get("/specials", (req, res) => {
         <div class="card">
           <h2>Generate Specials</h2>
           <p class="small">
-            This scans Guesty availability and creates the copy/paste post with Airbnb, VRBO, direct booking, and the saved flyer image URL.
+            This scans Guesty availability and creates the copy/paste post with Facebook groups, Airbnb, VRBO, direct booking, and the saved flyer image URL.
           </p>
 
-          <div class="grid-3">
+          <div class="grid-4">
+            <div>
+              <label>Scan Filter</label>
+              <select id="scanPreset" onchange="applyScanPreset()">
+                <option value="15">Today to 15 days</option>
+                <option value="30">Today to 30 days</option>
+                <option value="month">Specific month</option>
+                <option value="custom">Custom dates</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Specific Month</label>
+              <input id="specificMonth" type="month" onchange="applyScanPreset()" />
+            </div>
+
             <div>
               <label>From</label>
               <input id="from" type="date" />
@@ -616,16 +592,34 @@ app.get("/specials", (req, res) => {
               <label>To</label>
               <input id="to" type="date" />
             </div>
+          </div>
 
-            <div>
-              <label>Specific Listing ID Optional</label>
-              <input id="listingId" placeholder="Leave blank for all active properties" />
+          <br />
+
+          <div>
+            <label>Specific Listing ID Optional</label>
+            <input id="listingId" placeholder="Leave blank for all active properties" />
+          </div>
+
+          <br />
+
+          <div>
+            <label>Facebook Groups</label>
+            <textarea
+              id="facebookGroups"
+              placeholder="Paste Facebook group links here, one per line"
+            ></textarea>
+            <div class="small">
+              Saved in your browser. When you click Copy Message, these groups will be added above the post text.
             </div>
           </div>
 
           <br />
 
-          <button onclick="generateSpecials()">Generate Specials</button>
+          <div class="row">
+            <button onclick="saveFacebookGroups()">Save Facebook Groups</button>
+            <button onclick="generateSpecials()">Generate Specials</button>
+          </div>
         </div>
 
         <div id="status"></div>
@@ -641,11 +635,96 @@ app.get("/specials", (req, res) => {
               .replaceAll("'", "&#039;");
           }
 
+          function toYmd(date) {
+            return date.toISOString().slice(0, 10);
+          }
+
+          function addDays(date, days) {
+            const copy = new Date(date);
+            copy.setDate(copy.getDate() + days);
+            return copy;
+          }
+
+          function getLastDayOfMonth(year, monthIndex) {
+            return new Date(year, monthIndex + 1, 0);
+          }
+
+          function applyScanPreset() {
+            const preset = document.getElementById("scanPreset").value;
+            const fromInput = document.getElementById("from");
+            const toInput = document.getElementById("to");
+            const monthInput = document.getElementById("specificMonth");
+
+            const today = new Date();
+
+            if (preset === "15") {
+              fromInput.value = toYmd(today);
+              toInput.value = toYmd(addDays(today, 15));
+              return;
+            }
+
+            if (preset === "30") {
+              fromInput.value = toYmd(today);
+              toInput.value = toYmd(addDays(today, 30));
+              return;
+            }
+
+            if (preset === "month") {
+              if (!monthInput.value) {
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, "0");
+                monthInput.value = yyyy + "-" + mm;
+              }
+
+              const parts = monthInput.value.split("-");
+              const year = Number(parts[0]);
+              const monthIndex = Number(parts[1]) - 1;
+
+              const first = new Date(year, monthIndex, 1);
+              const last = getLastDayOfMonth(year, monthIndex);
+
+              fromInput.value = toYmd(first);
+              toInput.value = toYmd(addDays(last, 1));
+              return;
+            }
+          }
+
+          function saveFacebookGroups() {
+            const value = document.getElementById("facebookGroups").value || "";
+            localStorage.setItem("oceanSpecialsFacebookGroups", value);
+            alert("Facebook groups saved");
+          }
+
+          function loadFacebookGroups() {
+            const saved = localStorage.getItem("oceanSpecialsFacebookGroups") || "";
+            const box = document.getElementById("facebookGroups");
+
+            if (box) {
+              box.value = saved;
+            }
+          }
+
+          function buildCopyMessage(message) {
+            const groups = localStorage.getItem("oceanSpecialsFacebookGroups") || "";
+
+            if (!groups.trim()) {
+              return message;
+            }
+
+            return "FACEBOOK GROUPS:\\n\\n"
+              + groups.trim()
+              + "\\n\\nPOST MESSAGE:\\n\\n"
+              + message;
+          }
+
           async function copyText(id) {
             const el = document.getElementById(id);
-            await navigator.clipboard.writeText(el.value);
+            const fullMessage = buildCopyMessage(el.value);
+
+            await navigator.clipboard.writeText(fullMessage);
+
             const status = document.getElementById("copy-" + id);
-            status.innerHTML = '<span class="success">Copied</span>';
+            status.innerHTML = '<span class="success">Copied with Facebook groups</span>';
           }
 
           function renderPost(post, index) {
@@ -655,26 +734,20 @@ app.get("/specials", (req, res) => {
               ? '<div class="small success">Flyer URL included</div>'
               : '<div class="small error">No flyer URL saved for this property</div>';
 
-            return \`
-              <div class="card">
-                <h3>\${escapeHtml(post.propertyTitle)}</h3>
-                <div class="small">Property ID: \${escapeHtml(post.propertyId || "")}</div>
-                <div class="small">Specials found: \${post.specials.length}</div>
-                \${flyerLine}
-
-                <br />
-
-                <textarea class="postbox" id="\${textareaId}">\${escapeHtml(post.message)}</textarea>
-
-                <br />
-                <br />
-
-                <div class="row">
-                  <button onclick="copyText('\${textareaId}')">Copy Message</button>
-                  <span id="copy-\${textareaId}"></span>
-                </div>
-              </div>
-            \`;
+            return ''
+              + '<div class="card">'
+              + '  <h3>' + escapeHtml(post.propertyTitle) + '</h3>'
+              + '  <div class="small">Property ID: ' + escapeHtml(post.propertyId || "") + '</div>'
+              + '  <div class="small">Specials found: ' + post.specials.length + '</div>'
+              +    flyerLine
+              + '  <br />'
+              + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(post.message) + '</textarea>'
+              + '  <br /><br />'
+              + '  <div class="row">'
+              + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
+              + '    <span id="copy-' + textareaId + '"></span>'
+              + '  </div>'
+              + '</div>';
           }
 
           async function generateSpecials() {
@@ -711,6 +784,9 @@ app.get("/specials", (req, res) => {
 
             results.innerHTML = data.propertyPosts.map(renderPost).join("");
           }
+
+          loadFacebookGroups();
+          applyScanPreset();
         </script>
       `
     )
