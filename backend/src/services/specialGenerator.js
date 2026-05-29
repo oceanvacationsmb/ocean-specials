@@ -238,7 +238,7 @@ function convertManagedProperty(property) {
 
     minNights: Number(property.minNights || 1),
     maxNights: Math.max(Number(property.maxNights || 60), 60),
-    const scanDays = Number(options.days || 60);
+    scanDays: 60,
 
     active: property.active !== false
   };
@@ -280,7 +280,7 @@ async function scanProperty(property, scanFromYmd, scanToYmd) {
 export async function generateSpecials(selectedPropertyIds = [], options = {}) {
   const today = new Date();
 
-  const scanDays = Number(options.days || 15);
+  const scanDays = 60;
 
   const startDate = addDays(today, 2);
   const scanFromYmd = toYmd(startDate);
