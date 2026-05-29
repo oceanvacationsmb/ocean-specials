@@ -5,11 +5,11 @@ dotenv.config();
 
 const GUESTY_BASE_URL =
   process.env.GUESTY_BASE_URL ||
-  "https://open-api.guesty.com/v1";
+  "https://booking.guesty.com/api";
 
 const GUESTY_TOKEN_URL =
   process.env.GUESTY_TOKEN_URL ||
-  "https://open-api.guesty.com/oauth2/token";
+  "https://booking.guesty.com/oauth2/token";
 
 let accessToken = null;
 let tokenExpiresAt = 0;
@@ -33,36 +33,22 @@ function getCredentials() {
   };
 }
 
-function getRetryAfterMs(error, fallbackMs = 15000) {
-  const retryAfter = error.response?.headers?.["retry-after"];
-
-  if (!retryAfter) {
-    return fallbackMs;
-  }
-
-  const seconds = Number(retryAfter);
-
-  if (!Number.isNaN(seconds) && seconds > 0) {
-    return seconds * 1000;
-  }
-
-  return fallbackMs;
-}
-
 async function getNewToken() {
   const { clientId, clientSecret } = getCredentials();
 
   const body = new URLSearchParams();
   body.set("grant_type", "client_credentials");
+  body.set("scope", "booking_engine:api");
   body.set("client_id", clientId);
   body.set("client_secret", clientSecret);
-  body.set("scope", "open-api");
 
   const response = await axios.post(
     GUESTY_TOKEN_URL,
     body.toString(),
     {
       headers: {
+        accept: "application/json",
+        "cache-control": "no-cache",
         "Content-Type": "application/x-www-form-urlencoded"
       },
       timeout: 30000
@@ -96,8 +82,24 @@ async function getAccessToken() {
   return tokenPromise;
 }
 
+function getRetryAfterMs(error, fallbackMs = 10000) {
+  const retryAfter = error.response?.headers?.["retry-after"];
+
+  if (!retryAfter) {
+    return fallbackMs;
+  }
+
+  const seconds = Number(retryAfter);
+
+  if (!Number.isNaN(seconds) && seconds > 0) {
+    return seconds * 1000;
+  }
+
+  return fallbackMs;
+}
+
 async function guestyRequest(config, options = {}) {
-  const maxRetries = options.maxRetries || 5;
+  const maxRetries = options.maxRetries || 3;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -128,8 +130,8 @@ async function guestyRequest(config, options = {}) {
       }
 
       if (status === 429) {
-  throw error;
-}
+        throw error;
+      }
 
       throw error;
     }
@@ -161,17 +163,12 @@ export async function getListingCalendar(listingId, startDate, endDate) {
     throw new Error("Missing listingId");
   }
 
-  return guestyRequest(
-    {
-      method: "GET",
-      url: `/availability-pricing/api/calendar/listings/${listingId}`,
-      params: {
-        startDate,
-        endDate
-      }
-    },
-    {
-      maxRetries: 1
+  return guestyRequest({
+    method: "GET",
+    url: `/listings/${listingId}/calendar`,
+    params: {
+      startDate,
+      endDate
     }
-  );
+  });
 }
