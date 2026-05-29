@@ -1,152 +1,243 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 
 import {
   testGuestyConnection,
   getListingCalendar,
-  createReservationQuote,
   getAllListings
 } from "./services/guestyApi.js";
-
-import { findAvailableGaps } from "./services/gapFinder.js";
-import { getTotalFromQuote, applyDiscount } from "./services/priceHelper.js";
-import { generateSpecials } from "./services/specialGenerator.js";
-import { generateAndUploadFlyer } from "./services/flyerGenerator.js";
 
 import {
   getManagedProperties,
   saveManagedProperty
 } from "./services/propertyManager.js";
 
+import { generateSpecials } from "./services/specialGenerator.js";
+
+dotenv.config();
+
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-const facebookGroups = [
-  {
-    name: "SC Airbnb STR",
-    url: "https://www.facebook.com/groups/sc.airbnb.str"
-  },
-  {
-    name: "Group 2",
-    url: "https://www.facebook.com/groups/1113712659905398"
-  },
-  {
-    name: "Group 3",
-    url: "https://www.facebook.com/groups/2736252166756091"
-  },
-  {
-    name: "Group 4",
-    url: "https://www.facebook.com/groups/264018952933987"
-  }
-];
-
-function safe(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function addDays(date, days) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
-}
-
-function toYmd(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function getMonthName(monthValue) {
-  const date = new Date(monthValue + "-01T00:00:00");
-
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric"
-  });
-}
+const PORT = process.env.PORT || 10000;
 
 function getScanOptions(req) {
-  const today = new Date();
-  const todayYmd = toYmd(today);
-
-  const mode = req.query.mode || "last15";
-  const month = req.query.month || "";
-
-  if (mode === "month" && month) {
-    const start = new Date(month + "-01T00:00:00");
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + 1);
-
-    return {
-      mode,
-      month,
-      scanFrom: toYmd(start),
-      scanTo: toYmd(end),
-      scanLabel: `${getMonthName(month).toUpperCase()} AVAILABILITY SPECIALS`
-    };
-  }
-
-  if (mode === "next30") {
-    return {
-      mode,
-      month,
-      scanFrom: todayYmd,
-      scanTo: toYmd(addDays(today, 30)),
-      scanLabel: "LAST MINUTE DEALS • NEXT 30 DAYS"
-    };
-  }
-
   return {
-    mode: "last15",
-    month,
-    scanFrom: todayYmd,
-    scanTo: toYmd(addDays(today, 15)),
-    scanLabel: "LAST MINUTE DEALS • NEXT 15 DAYS"
+    from: req.query.from || req.body?.from || undefined,
+    to: req.query.to || req.body?.to || undefined,
+    days: req.query.days || req.body?.days || undefined
   };
 }
 
-function getMonthOptions() {
-  const today = new Date();
-  const options = [];
+function pageShell(title, body) {
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${title}</title>
+        <style>
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            background: #f4f7fb;
+            color: #102a43;
+          }
 
-  for (let i = 0; i < 8; i++) {
-    const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
-    const value = date.toISOString().slice(0, 7);
-    const label = date.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric"
-    });
+          header {
+            background: #062f53;
+            color: white;
+            padding: 18px 24px;
+          }
 
-    options.push({ value, label });
-  }
+          header h1 {
+            margin: 0;
+            font-size: 24px;
+          }
 
-  return options;
+          nav {
+            margin-top: 10px;
+          }
+
+          nav a {
+            color: white;
+            margin-right: 18px;
+            text-decoration: none;
+            font-weight: 700;
+          }
+
+          main {
+            padding: 24px;
+            max-width: 1300px;
+            margin: 0 auto;
+          }
+
+          .card {
+            background: white;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+          }
+
+          .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+          }
+
+          .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+          }
+
+          label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 6px;
+          }
+
+          input,
+          textarea,
+          select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+          }
+
+          textarea {
+            min-height: 85px;
+          }
+
+          button {
+            background: #0f8f9f;
+            color: white;
+            border: 0;
+            border-radius: 9px;
+            padding: 10px 16px;
+            font-weight: 800;
+            cursor: pointer;
+          }
+
+          button.secondary {
+            background: #062f53;
+          }
+
+          button.danger {
+            background: #b42318;
+          }
+
+          .row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+          }
+
+          .small {
+            color: #52616f;
+            font-size: 13px;
+          }
+
+          .property-header {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 14px;
+            align-items: start;
+          }
+
+          .property-header img {
+            width: 140px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 10px;
+            background: #e5e7eb;
+          }
+
+          pre {
+            white-space: pre-wrap;
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+          }
+
+          .postbox {
+            width: 100%;
+            min-height: 280px;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 15px;
+          }
+
+          .success {
+            color: #067647;
+            font-weight: 800;
+          }
+
+          .error {
+            color: #b42318;
+            font-weight: 800;
+          }
+
+          @media (max-width: 850px) {
+            .grid,
+            .grid-3,
+            .property-header {
+              grid-template-columns: 1fr;
+            }
+
+            .property-header img {
+              width: 100%;
+              height: 220px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <header>
+          <h1>Ocean Vacations Specials</h1>
+          <nav>
+            <a href="/properties">Properties</a>
+            <a href="/specials">Specials</a>
+            <a href="/api/test">API Test</a>
+          </nav>
+        </header>
+        <main>
+          ${body}
+        </main>
+      </body>
+    </html>
+  `;
 }
 
 app.get("/", (req, res) => {
-  res.send(`
-    <h1>Ocean Specials</h1>
-    <p>Server is running.</p>
-    <p><a href="/properties">Open Properties Dashboard</a></p>
-    <p><a href="/specials">Open Specials Page</a></p>
-  `);
+  res.redirect("/specials");
 });
 
 app.get("/api/test", (req, res) => {
   res.json({
     ok: true,
-    message: "Ocean Specials API is working"
+    app: "Ocean Specials",
+    time: new Date().toISOString()
   });
 });
 
 app.get("/api/guesty/test", async (req, res) => {
   try {
     const result = await testGuestyConnection();
-    res.json(result);
+    res.json({
+      ok: true,
+      result
+    });
   } catch (error) {
     res.status(500).json({
       ok: false,
@@ -158,11 +249,48 @@ app.get("/api/guesty/test", async (req, res) => {
 
 app.get("/api/guesty/listings-test", async (req, res) => {
   try {
-    const listings = await getAllListings();
+    const result = await getAllListings();
+    res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
+app.get("/api/guesty/calendar-test", async (req, res) => {
+  try {
+    const listingId = req.query.listingId;
+
+    if (!listingId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing listingId query parameter"
+      });
+    }
+
+    const from =
+      req.query.from ||
+      new Date().toISOString().slice(0, 10);
+
+    const to =
+      req.query.to ||
+      new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+
+    const result = await getListingCalendar(listingId, from, to);
 
     res.json({
       ok: true,
-      listings
+      from,
+      to,
+      result
     });
   } catch (error) {
     res.status(500).json({
@@ -191,18 +319,11 @@ app.get("/api/properties", async (req, res) => {
   }
 });
 
-app.post("/api/properties/save", async (req, res) => {
+app.put("/api/properties/:listingId", async (req, res) => {
   try {
-    const { listingId, ...data } = req.body;
+    const listingId = req.params.listingId;
 
-    if (!listingId) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing listingId"
-      });
-    }
-
-    const saved = await saveManagedProperty(listingId, data);
+    const saved = await saveManagedProperty(listingId, req.body || {});
 
     res.json({
       ok: true,
@@ -218,544 +339,17 @@ app.post("/api/properties/save", async (req, res) => {
   }
 });
 
-app.get("/properties", async (req, res) => {
+app.post("/api/properties/:listingId", async (req, res) => {
   try {
-    const properties = await getManagedProperties();
+    const listingId = req.params.listingId;
 
-    const cards = properties
-      .map((property) => {
-        return `
-          <div class="card" data-listing-id="${safe(property.listingId)}">
-            <div class="card-head" onclick="toggleCard(this)">
-              <div class="main-info">
-                <div class="property-title">
-                  ${safe(property.shortId)} | ${safe(property.title)}
-                </div>
-                <div class="small">
-                  ${safe(property.city)} • ${safe(property.bedrooms)}BR • Sleeps ${safe(property.sleeps)}
-                </div>
-                <div class="small">
-                  Listing ID: ${safe(property.listingId)}
-                </div>
-              </div>
-
-              <div class="${property.active ? "status active" : "status inactive"}">
-                ${property.active ? "Active" : "Inactive"}
-              </div>
-            </div>
-
-            <div class="card-body">
-              ${
-                property.picture
-                  ? `<img class="property-image" src="${safe(property.picture)}" />`
-                  : ""
-              }
-
-              <div class="grid">
-                <label>
-                  Short ID
-                  <input class="shortId" value="${safe(property.shortId)}" />
-                </label>
-
-                <label>
-                  Active
-                  <select class="activeField">
-                    <option value="false" ${property.active ? "" : "selected"}>No</option>
-                    <option value="true" ${property.active ? "selected" : ""}>Yes</option>
-                  </select>
-                </label>
-
-                <label>
-                  Min Nights
-                  <input class="minNights" type="number" value="${safe(property.minNights)}" />
-                </label>
-
-                <label>
-                  Max Nights
-                  <input class="maxNights" type="number" value="${safe(property.maxNights)}" />
-                </label>
-
-                <label>
-                  Scan Days
-                  <input class="scanDays" type="number" value="${safe(property.scanDays)}" />
-                </label>
-              </div>
-
-              <label>
-                Selling Points
-                <input class="sellingPoints" value="${safe(property.sellingPoints)}" placeholder="Private Pool • Walk to Beach • Sleeps 18" />
-              </label>
-
-              <label>
-                Direct Booking URL
-                <input class="directBookingUrl" value="${safe(property.directBookingUrl)}" placeholder="https://oceanvacationsmb.guestybookings.com/..." />
-              </label>
-
-              <label>
-                VRBO URL
-                <input class="vrboUrl" value="${safe(property.vrboUrl)}" placeholder="https://www.vrbo.com/..." />
-              </label>
-
-              <label>
-                Airbnb URL
-                <input class="airbnbUrl" value="${safe(property.airbnbUrl)}" placeholder="https://www.airbnb.com/rooms/..." />
-              </label>
-
-              <button onclick="saveProperty(this)">Save Property</button>
-              <span class="save-status"></span>
-            </div>
-          </div>
-        `;
-      })
-      .join("");
-
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Properties Dashboard</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              background: #f5f7f8;
-              margin: 0;
-              padding: 16px;
-              color: #102a43;
-            }
-
-            .header {
-              max-width: 1050px;
-              margin: 0 auto 14px auto;
-            }
-
-            h1 {
-              font-size: 24px;
-              margin: 0 0 6px 0;
-              color: #082b45;
-            }
-
-            .sub {
-              color: #607080;
-              font-size: 14px;
-              margin-bottom: 10px;
-            }
-
-            .nav {
-              display: flex;
-              gap: 8px;
-              flex-wrap: wrap;
-              margin-top: 10px;
-            }
-
-            .nav a {
-              background: #082b45;
-              color: white;
-              text-decoration: none;
-              padding: 8px 12px;
-              border-radius: 8px;
-              font-size: 14px;
-              font-weight: 700;
-            }
-
-            .card {
-              background: white;
-              border-radius: 12px;
-              max-width: 1050px;
-              margin: 0 auto 10px auto;
-              box-shadow: 0 3px 12px rgba(0,0,0,0.06);
-              border: 1px solid #e1e8ed;
-              overflow: hidden;
-            }
-
-            .card-head {
-              padding: 13px 14px;
-              display: flex;
-              justify-content: space-between;
-              gap: 10px;
-              cursor: pointer;
-              align-items: flex-start;
-            }
-
-            .property-title {
-              font-size: 16px;
-              font-weight: 800;
-              color: #082b45;
-              line-height: 1.35;
-            }
-
-            .small {
-              font-size: 13px;
-              color: #546a7b;
-              margin-top: 4px;
-              line-height: 1.35;
-            }
-
-            .status {
-              padding: 5px 9px;
-              border-radius: 999px;
-              color: white;
-              font-size: 12px;
-              font-weight: 800;
-              white-space: nowrap;
-            }
-
-            .active {
-              background: #0b8a42;
-            }
-
-            .inactive {
-              background: #9aa6af;
-            }
-
-            .card-body {
-              display: none;
-              border-top: 1px solid #e1e8ed;
-              padding: 14px;
-            }
-
-            .card.open .card-body {
-              display: block;
-            }
-
-            .property-image {
-              width: 100%;
-              max-height: 230px;
-              object-fit: cover;
-              border-radius: 10px;
-              margin-bottom: 12px;
-            }
-
-            .grid {
-              display: grid;
-              grid-template-columns: repeat(5, 1fr);
-              gap: 10px;
-            }
-
-            label {
-              display: block;
-              font-size: 13px;
-              font-weight: 800;
-              color: #082b45;
-              margin-bottom: 10px;
-            }
-
-            input,
-            select {
-              width: 100%;
-              box-sizing: border-box;
-              padding: 9px 10px;
-              border-radius: 8px;
-              border: 1px solid #cfd8df;
-              margin-top: 5px;
-              font-size: 14px;
-              background: white;
-            }
-
-            button {
-              background: #007f8f;
-              color: white;
-              border: none;
-              padding: 10px 14px;
-              border-radius: 8px;
-              font-size: 14px;
-              cursor: pointer;
-              font-weight: 800;
-            }
-
-            button:hover {
-              opacity: 0.92;
-            }
-
-            .save-status {
-              margin-left: 8px;
-              font-size: 13px;
-              font-weight: 800;
-              color: #0b8a42;
-            }
-
-            @media (max-width: 800px) {
-              body {
-                padding: 10px;
-              }
-
-              .card-head {
-                flex-direction: column;
-              }
-
-              .grid {
-                grid-template-columns: 1fr;
-              }
-
-              button {
-                width: 100%;
-              }
-
-              .save-status {
-                display: block;
-                margin: 8px 0 0 0;
-              }
-            }
-          </style>
-        </head>
-
-        <body>
-          <div class="header">
-            <h1>Properties Dashboard</h1>
-            <div class="sub">
-              Loaded ${properties.length} properties from Guesty. Click a property to edit the missing marketing info.
-            </div>
-
-            <div class="nav">
-              <a href="/specials">Open Specials</a>
-              <a href="/api/properties">View API Data</a>
-            </div>
-          </div>
-
-          ${cards}
-
-          <script>
-            function toggleCard(head) {
-              const card = head.closest(".card");
-              card.classList.toggle("open");
-            }
-
-            async function saveProperty(button) {
-              const card = button.closest(".card");
-              const status = card.querySelector(".save-status");
-
-              const data = {
-                listingId: card.dataset.listingId,
-                shortId: card.querySelector(".shortId").value.trim(),
-                active: card.querySelector(".activeField").value === "true",
-                sellingPoints: card.querySelector(".sellingPoints").value.trim(),
-                directBookingUrl: card.querySelector(".directBookingUrl").value.trim(),
-                airbnbUrl: card.querySelector(".airbnbUrl").value.trim(),
-                vrboUrl: card.querySelector(".vrboUrl").value.trim(),
-                minNights: Number(card.querySelector(".minNights").value || 1),
-                maxNights: Number(card.querySelector(".maxNights").value || 30),
-                scanDays: Number(card.querySelector(".scanDays").value || 15)
-              };
-
-              button.disabled = true;
-              button.innerText = "Saving...";
-              status.innerText = "";
-              status.style.color = "#0b8a42";
-
-              try {
-                const response = await fetch("/api/properties/save", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json"
-                  },
-                  body: JSON.stringify(data)
-                });
-
-                const result = await response.json();
-
-                if (!result.ok) {
-                  throw new Error(result.error || "Save failed");
-                }
-
-                status.innerText = "Saved";
-                button.innerText = "Saved";
-
-                setTimeout(() => {
-                  button.innerText = "Save Property";
-                  button.disabled = false;
-                }, 1200);
-              } catch (error) {
-                status.innerText = error.message;
-                status.style.color = "#b00020";
-                button.innerText = "Save Property";
-                button.disabled = false;
-              }
-            }
-          </script>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    res.status(500).send(`
-      <h1>Error loading properties</h1>
-      <p>${safe(error.message)}</p>
-      <pre>${safe(JSON.stringify(error.response?.data || {}, null, 2))}</pre>
-    `);
-  }
-});
-
-app.get("/api/guesty/listings-simple", async (req, res) => {
-  try {
-    const properties = await getManagedProperties();
-
-    res.json({
-      ok: true,
-      count: properties.length,
-      listings: properties
-    });
-  } catch (error) {
-    res.status(500).json({
-      ok: false,
-      error: error.message,
-      details: error.response?.data || null
-    });
-  }
-});
-
-app.get("/api/guesty/calendar-test", async (req, res) => {
-  try {
-    const listingId = "68db1a3f34efe70012fd1284";
-
-    const result = await getListingCalendar(
-      listingId,
-      "2026-05-25",
-      "2026-06-25"
-    );
+    const saved = await saveManagedProperty(listingId, req.body || {});
 
     res.json({
       ok: true,
       listingId,
-      result
+      saved
     });
-  } catch (error) {
-    res.status(500).json({
-      ok: false,
-      error: error.message,
-      details: error.response?.data || null
-    });
-  }
-});
-
-app.get("/api/specials/gaps-test", async (req, res) => {
-  try {
-    const listingId = "68db1a3f34efe70012fd1284";
-
-    const calendar = await getListingCalendar(
-      listingId,
-      "2026-05-25",
-      "2026-06-25"
-    );
-
-    const gaps = findAvailableGaps(calendar, 1, 30);
-
-    res.json({
-      ok: true,
-      listingId,
-      count: gaps.length,
-      gaps
-    });
-  } catch (error) {
-    res.status(500).json({
-      ok: false,
-      error: error.message,
-      details: error.response?.data || null
-    });
-  }
-});
-
-app.get("/api/guesty/quote-test", async (req, res) => {
-  try {
-    const listingId = "68db1a3f34efe70012fd1284";
-
-    const quote = await createReservationQuote({
-      listingId,
-      checkInDateLocalized: "2026-05-26",
-      checkOutDateLocalized: "2026-05-28",
-      guestsCount: 18
-    });
-
-    res.json({
-      ok: true,
-      listingId,
-      checkIn: "2026-05-26",
-      checkOut: "2026-05-28",
-      guestsCount: 18,
-      quote
-    });
-  } catch (error) {
-    res.status(500).json({
-      ok: false,
-      error: error.message,
-      details: error.response?.data || null
-    });
-  }
-});
-
-app.get("/api/specials/price-test", async (req, res) => {
-  try {
-    const listingId = "68db1a3f34efe70012fd1284";
-    const discountPercent = 15;
-
-    const quote = await createReservationQuote({
-      listingId,
-      checkInDateLocalized: "2026-05-26",
-      checkOutDateLocalized: "2026-05-28",
-      guestsCount: 18
-    });
-
-    const price = getTotalFromQuote(quote);
-
-    if (!price) {
-      return res.status(500).json({
-        ok: false,
-        error: "Could not find total price in Guesty quote",
-        quote
-      });
-    }
-
-    const discount = applyDiscount(price.regularTotal, discountPercent);
-
-    res.json({
-      ok: true,
-      listingId,
-      checkIn: "2026-05-26",
-      checkOut: "2026-05-28",
-      guestsCount: 18,
-      discountPercent,
-      price,
-      discount,
-      summary: {
-        regularTotal: price.regularTotal,
-        discountAmount: discount.discountAmount,
-        specialTotal: discount.specialTotal
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      ok: false,
-      error: error.message,
-      details: error.response?.data || null
-    });
-  }
-});
-
-app.post("/api/flyer/generate", async (req, res) => {
-  try {
-    const { listingId } = req.body;
-
-    if (!listingId) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing listingId"
-      });
-    }
-
-    const scanOptions = getScanOptions(req);
-    const result = await generateSpecials([listingId], scanOptions);
-
-    const post = result.propertyPosts[0];
-
-    if (!post) {
-      return res.status(404).json({
-        ok: false,
-        error: "No specials found for this property in the selected scan window"
-      });
-    }
-
-    const flyer = await generateAndUploadFlyer(post, result.scan);
-
-    res.json(flyer);
   } catch (error) {
     res.status(500).json({
       ok: false,
@@ -767,8 +361,11 @@ app.post("/api/flyer/generate", async (req, res) => {
 
 app.get("/api/specials/generate", async (req, res) => {
   try {
-    const scanOptions = getScanOptions(req);
-    const result = await generateSpecials([], scanOptions);
+    const selectedPropertyIds = req.query.listingId
+      ? String(req.query.listingId).split(",").filter(Boolean)
+      : [];
+
+    const result = await generateSpecials(selectedPropertyIds, getScanOptions(req));
 
     res.json(result);
   } catch (error) {
@@ -780,483 +377,391 @@ app.get("/api/specials/generate", async (req, res) => {
   }
 });
 
-app.get("/specials", async (req, res) => {
+app.post("/api/specials/generate", async (req, res) => {
   try {
-    const scanOptions = getScanOptions(req);
-    const result = await generateSpecials([], scanOptions);
+    const selectedPropertyIds = Array.isArray(req.body?.listingIds)
+      ? req.body.listingIds
+      : [];
 
-    const monthOptions = getMonthOptions()
-      .map((option) => {
-        const selected = scanOptions.month === option.value ? "selected" : "";
+    const result = await generateSpecials(selectedPropertyIds, getScanOptions(req));
 
-        return `
-          <option value="${safe(option.value)}" ${selected}>
-            ${safe(option.label)}
-          </option>
-        `;
-      })
-      .join("");
-
-    const groupButtons = facebookGroups
-      .map((group) => {
-        return `
-          <button class="group-button" onclick="copyAndOpen(this, '${safe(group.url)}')">
-            Copy + Open ${safe(group.name)}
-          </button>
-        `;
-      })
-      .join("");
-
-    const cards = result.propertyPosts
-      .map((post) => {
-        return `
-          <div class="card">
-            <div class="top-row">
-              <div>
-                <div class="property-title">
-                  ${safe(post.propertyId)} | ${safe(post.openingsCount)} openings found
-                </div>
-                <div class="small">
-                  ${safe(post.propertyTitle)}
-                </div>
-              </div>
-              <div class="badge">${safe(post.location)}</div>
-            </div>
-
-            <button class="expand-button" onclick="toggleMessage(this)">
-              Expand Message
-            </button>
-
-            <textarea readonly>${safe(post.facebookText)}</textarea>
-
-            <div class="button-row">
-              <button onclick="generateFlyer(this, '${safe(post.listingId)}')">Generate Flyer</button>
-              <button onclick="copyText(this)">Copy Full Post</button>
-              ${groupButtons}
-            </div>
-
-            <div class="flyer-result"></div>
-          </div>
-        `;
-      })
-      .join("");
-
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Ocean Specials</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              background: #f5f7f8;
-              margin: 0;
-              padding: 16px;
-              color: #102a43;
-            }
-
-            .header {
-              max-width: 960px;
-              margin: 0 auto 14px auto;
-            }
-
-            h1 {
-              font-size: 22px;
-              margin: 0 0 4px 0;
-              color: #082b45;
-            }
-
-            .sub {
-              color: #607080;
-              font-size: 14px;
-            }
-
-            .nav {
-              display: flex;
-              gap: 8px;
-              flex-wrap: wrap;
-              margin-top: 10px;
-            }
-
-            .nav a {
-              background: #082b45;
-              color: white;
-              text-decoration: none;
-              padding: 8px 12px;
-              border-radius: 8px;
-              font-size: 14px;
-              font-weight: 700;
-            }
-
-            .filter-box {
-              background: white;
-              border: 1px solid #e1e8ed;
-              border-radius: 12px;
-              padding: 12px;
-              margin-top: 12px;
-              display: grid;
-              grid-template-columns: 1.5fr 1fr auto;
-              gap: 10px;
-              align-items: end;
-            }
-
-            .filter-box label {
-              font-size: 13px;
-              font-weight: 800;
-              color: #082b45;
-            }
-
-            .filter-box select {
-              width: 100%;
-              box-sizing: border-box;
-              margin-top: 5px;
-              padding: 9px 10px;
-              border-radius: 8px;
-              border: 1px solid #cfd8df;
-              font-size: 14px;
-              background: white;
-            }
-
-            .scan-note {
-              font-size: 13px;
-              color: #546a7b;
-              margin-top: 8px;
-              font-weight: 700;
-            }
-
-            .card {
-              background: white;
-              border-radius: 12px;
-              padding: 14px;
-              max-width: 960px;
-              margin: 0 auto 12px auto;
-              box-shadow: 0 3px 12px rgba(0,0,0,0.06);
-              border: 1px solid #e1e8ed;
-            }
-
-            .top-row {
-              display: flex;
-              justify-content: space-between;
-              gap: 10px;
-              align-items: flex-start;
-            }
-
-            .property-title {
-              font-size: 16px;
-              font-weight: 700;
-              color: #082b45;
-              line-height: 1.35;
-            }
-
-            .small {
-              font-size: 13px;
-              color: #546a7b;
-              margin-top: 5px;
-              line-height: 1.35;
-            }
-
-            .badge {
-              background: #007f8f;
-              color: white;
-              padding: 5px 9px;
-              border-radius: 999px;
-              font-size: 12px;
-              font-weight: 700;
-              white-space: nowrap;
-            }
-
-            .expand-button {
-              margin-top: 10px;
-              background: #607080;
-            }
-
-            textarea {
-              display: none;
-              width: 100%;
-              height: 260px;
-              border: 1px solid #cfd8df;
-              border-radius: 10px;
-              padding: 10px;
-              font-size: 14px;
-              box-sizing: border-box;
-              margin-top: 10px;
-              line-height: 1.4;
-              resize: vertical;
-              background: #fbfdfe;
-            }
-
-            .card.open textarea {
-              display: block;
-            }
-
-            .button-row {
-              display: flex;
-              flex-wrap: wrap;
-              gap: 8px;
-              margin-top: 8px;
-            }
-
-            button {
-              background: #082b45;
-              color: white;
-              border: none;
-              padding: 9px 13px;
-              border-radius: 8px;
-              font-size: 14px;
-              cursor: pointer;
-              font-weight: 700;
-            }
-
-            button:hover {
-              opacity: 0.92;
-            }
-
-            button:disabled {
-              opacity: 0.6;
-              cursor: not-allowed;
-            }
-
-            .group-button {
-              background: #1877f2;
-            }
-
-            .flyer-result {
-              margin-top: 10px;
-              display: none;
-              border-top: 1px solid #e1e8ed;
-              padding-top: 10px;
-            }
-
-            .flyer-result.open {
-              display: block;
-            }
-
-            .flyer-result textarea {
-              display: block;
-              height: 260px;
-              margin-top: 8px;
-            }
-
-            .flyer-link {
-              display: block;
-              color: #007f8f;
-              font-size: 13px;
-              font-weight: 800;
-              margin-top: 8px;
-              word-break: break-all;
-            }
-
-            .empty {
-              max-width: 960px;
-              margin: 0 auto;
-              background: white;
-              padding: 16px;
-              border-radius: 12px;
-              border: 1px solid #e1e8ed;
-            }
-
-            @media (max-width: 650px) {
-              body {
-                padding: 10px;
-              }
-
-              .filter-box {
-                grid-template-columns: 1fr;
-              }
-
-              .top-row {
-                flex-direction: column;
-              }
-
-              .badge {
-                width: fit-content;
-              }
-
-              textarea {
-                height: 300px;
-              }
-
-              button {
-                width: 100%;
-              }
-            }
-          </style>
-        </head>
-
-        <body>
-          <div class="header">
-            <h1>Ocean Vacations Specials</h1>
-            <div class="sub">
-              One card per property. Generate flyer, copy caption, post to Facebook.
-            </div>
-
-            <div class="nav">
-              <a href="/properties">Properties Dashboard</a>
-              <a href="/api/specials/generate">View Raw Specials</a>
-            </div>
-
-            <form class="filter-box" method="GET" action="/specials">
-              <label>
-                Scan Window
-                <select name="mode" onchange="toggleMonthBox(this)">
-                  <option value="last15" ${scanOptions.mode === "last15" ? "selected" : ""}>
-                    Last Minute Deals, Today to 15 Days
-                  </option>
-                  <option value="next30" ${scanOptions.mode === "next30" ? "selected" : ""}>
-                    Next 30 Days
-                  </option>
-                  <option value="month" ${scanOptions.mode === "month" ? "selected" : ""}>
-                    Specific Month
-                  </option>
-                </select>
-              </label>
-
-              <label id="monthBox" style="${scanOptions.mode === "month" ? "" : "display:none;"}">
-                Month
-                <select name="month">
-                  ${monthOptions}
-                </select>
-              </label>
-
-              <button type="submit">Scan</button>
-            </form>
-
-            <div class="scan-note">
-              Showing: ${safe(result.scan.label)} | ${safe(result.scan.from)} to ${safe(result.scan.to)}
-            </div>
-          </div>
-
-          ${cards || `<div class="empty">No property specials found right now.</div>`}
-
-          <script>
-            function toggleMonthBox(select) {
-              const monthBox = document.getElementById("monthBox");
-              monthBox.style.display = select.value === "month" ? "" : "none";
-            }
-
-            function toggleMessage(button) {
-              const card = button.closest(".card");
-              card.classList.toggle("open");
-              button.innerText = card.classList.contains("open")
-                ? "Hide Message"
-                : "Expand Message";
-            }
-
-            function getTextareaFromButton(button) {
-              return button.closest(".card").querySelector("textarea");
-            }
-
-            function copyTextarea(textarea) {
-              textarea.style.display = "block";
-              textarea.select();
-              textarea.setSelectionRange(0, 999999);
-              document.execCommand("copy");
-            }
-
-            function copyText(button) {
-              const textarea = getTextareaFromButton(button);
-              copyTextarea(textarea);
-
-              button.innerText = "Copied";
-              setTimeout(() => {
-                button.innerText = "Copy Full Post";
-              }, 1500);
-            }
-
-            function copyAndOpen(button, url) {
-              const textarea = getTextareaFromButton(button);
-              copyTextarea(textarea);
-
-              button.innerText = "Copied + Opening";
-              window.open(url, "_blank");
-
-              setTimeout(() => {
-                button.innerText = "Copy + Open Group";
-              }, 1500);
-            }
-
-            async function generateFlyer(button, listingId) {
-              const card = button.closest(".card");
-              const resultBox = card.querySelector(".flyer-result");
-
-              button.disabled = true;
-              button.innerText = "Generating...";
-
-              resultBox.classList.remove("open");
-              resultBox.innerHTML = "";
-
-              try {
-                const params = new URLSearchParams(window.location.search);
-
-                const response = await fetch("/api/flyer/generate?" + params.toString(), {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json"
-                  },
-                  body: JSON.stringify({
-                    listingId
-                  })
-                });
-
-                const result = await response.json();
-
-                if (!result.ok) {
-                  throw new Error(result.error || "Could not generate flyer");
-                }
-
-                const safeCaption = result.caption
-                  .replaceAll("&", "&amp;")
-                  .replaceAll("<", "&lt;")
-                  .replaceAll(">", "&gt;");
-
-                resultBox.classList.add("open");
-                resultBox.innerHTML =
-                  '<a class="flyer-link" href="' + result.flyerUrl + '" target="_blank">Open Flyer JPG</a>' +
-                  '<textarea readonly>' + safeCaption + '</textarea>' +
-                  '<button onclick="copyFlyerCaption(this)">Copy Flyer Post</button>';
-
-                button.innerText = "Flyer Ready";
-              } catch (error) {
-                resultBox.classList.add("open");
-                resultBox.innerHTML =
-                  '<div class="small" style="color:#b00020;font-weight:800;">' +
-                  error.message +
-                  '</div>';
-
-                button.innerText = "Generate Flyer";
-              }
-
-              button.disabled = false;
-            }
-
-            function copyFlyerCaption(button) {
-              const textarea = button.previousElementSibling;
-              textarea.select();
-              textarea.setSelectionRange(0, 999999);
-              document.execCommand("copy");
-
-              button.innerText = "Copied";
-              setTimeout(() => {
-                button.innerText = "Copy Flyer Post";
-              }, 1500);
-            }
-          </script>
-        </body>
-      </html>
-    `);
+    res.json(result);
   } catch (error) {
-    res.status(500).send(`
-      <h1>Error</h1>
-      <p>${safe(error.message)}</p>
-      <pre>${safe(JSON.stringify(error.response?.data || {}, null, 2))}</pre>
-    `);
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
   }
 });
 
-const port = process.env.PORT || 10000;
+app.get("/properties", (req, res) => {
+  res.send(
+    pageShell(
+      "Properties",
+      `
+        <div class="card">
+          <h2>Property Dashboard</h2>
+          <p class="small">
+            Add the Airbnb URL, VRBO URL, Direct Booking URL, and the Cloudinary flyer image URL for each property.
+          </p>
+          <button onclick="loadProperties()">Reload Properties</button>
+        </div>
 
-app.listen(port, () => {
-  console.log(`Ocean Specials running on port ${port}`);
+        <div id="status"></div>
+        <div id="properties"></div>
+
+        <script>
+          function escapeHtml(value) {
+            return String(value || "")
+              .replaceAll("&", "&amp;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;")
+              .replaceAll('"', "&quot;")
+              .replaceAll("'", "&#039;");
+          }
+
+          function getValue(id) {
+            const el = document.getElementById(id);
+            return el ? el.value : "";
+          }
+
+          function getChecked(id) {
+            const el = document.getElementById(id);
+            return el ? el.checked : false;
+          }
+
+          async function saveProperty(listingId) {
+            const safeId = CSS.escape(listingId);
+
+            const body = {
+              shortId: getValue("shortId-" + listingId),
+              active: getChecked("active-" + listingId),
+              sellingPoints: getValue("sellingPoints-" + listingId),
+              directBookingUrl: getValue("directBookingUrl-" + listingId),
+              airbnbUrl: getValue("airbnbUrl-" + listingId),
+              vrboUrl: getValue("vrboUrl-" + listingId),
+              flyerImageUrl: getValue("flyerImageUrl-" + listingId),
+              minNights: Number(getValue("minNights-" + listingId) || 1),
+              maxNights: Number(getValue("maxNights-" + listingId) || 30),
+              scanDays: Number(getValue("scanDays-" + listingId) || 15)
+            };
+
+            const response = await fetch("/api/properties/" + encodeURIComponent(listingId), {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            const status = document.getElementById("saveStatus-" + listingId);
+
+            if (data.ok) {
+              status.innerHTML = '<span class="success">Saved</span>';
+            } else {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Save failed") + '</span>';
+            }
+          }
+
+          function renderProperty(property) {
+            const id = property.listingId;
+
+            return \`
+              <div class="card">
+                <div class="property-header">
+                  <img src="\${escapeHtml(property.picture || "")}" />
+                  <div>
+                    <h3>\${escapeHtml(property.title || "Untitled Property")}</h3>
+                    <div class="small">
+                      Listing ID: \${escapeHtml(property.listingId)}
+                    </div>
+                    <div class="small">
+                      City: \${escapeHtml(property.city || "")}
+                    </div>
+                    <div class="small">
+                      \${escapeHtml(property.bedrooms || "")} Bedrooms •
+                      \${escapeHtml(property.bathrooms || "")} Bathrooms •
+                      Sleeps \${escapeHtml(property.sleeps || "")}
+                    </div>
+                  </div>
+                </div>
+
+                <br />
+
+                <div class="grid-3">
+                  <div>
+                    <label>Active</label>
+                    <input
+                      id="active-\${escapeHtml(id)}"
+                      type="checkbox"
+                      \${property.active !== false ? "checked" : ""}
+                      style="width:auto;"
+                    />
+                  </div>
+
+                  <div>
+                    <label>Property Short ID</label>
+                    <input
+                      id="shortId-\${escapeHtml(id)}"
+                      value="\${escapeHtml(property.shortId || "")}"
+                      placeholder="3104-1"
+                    />
+                  </div>
+
+                  <div>
+                    <label>Scan Days</label>
+                    <input
+                      id="scanDays-\${escapeHtml(id)}"
+                      type="number"
+                      value="\${escapeHtml(property.scanDays || 15)}"
+                    />
+                  </div>
+                </div>
+
+                <br />
+
+                <div class="grid">
+                  <div>
+                    <label>Min Nights</label>
+                    <input
+                      id="minNights-\${escapeHtml(id)}"
+                      type="number"
+                      value="\${escapeHtml(property.minNights || 1)}"
+                    />
+                  </div>
+
+                  <div>
+                    <label>Max Nights</label>
+                    <input
+                      id="maxNights-\${escapeHtml(id)}"
+                      type="number"
+                      value="\${escapeHtml(property.maxNights || 30)}"
+                    />
+                  </div>
+                </div>
+
+                <br />
+
+                <div class="grid">
+                  <div>
+                    <label>Airbnb URL</label>
+                    <input
+                      id="airbnbUrl-\${escapeHtml(id)}"
+                      value="\${escapeHtml(property.airbnbUrl || "")}"
+                      placeholder="https://www.airbnb.com/rooms/..."
+                    />
+                  </div>
+
+                  <div>
+                    <label>VRBO URL</label>
+                    <input
+                      id="vrboUrl-\${escapeHtml(id)}"
+                      value="\${escapeHtml(property.vrboUrl || "")}"
+                      placeholder="https://www.vrbo.com/..."
+                    />
+                  </div>
+                </div>
+
+                <br />
+
+                <div>
+                  <label>Direct Booking URL</label>
+                  <input
+                    id="directBookingUrl-\${escapeHtml(id)}"
+                    value="\${escapeHtml(property.directBookingUrl || "")}"
+                    placeholder="https://oceanvacationsmb.guestybookings.com/properties/..."
+                  />
+                </div>
+
+                <br />
+
+                <div>
+                  <label>Flyer Image URL from Cloudinary</label>
+                  <input
+                    id="flyerImageUrl-\${escapeHtml(id)}"
+                    value="\${escapeHtml(property.flyerImageUrl || "")}"
+                    placeholder="https://res.cloudinary.com/.../image/upload/..."
+                  />
+                  <div class="small">
+                    This image URL will be added at the end of the generated post.
+                  </div>
+                </div>
+
+                <br />
+
+                <div>
+                  <label>Selling Points</label>
+                  <textarea
+                    id="sellingPoints-\${escapeHtml(id)}"
+                    placeholder="Oceanfront, Private balcony, Beach access"
+                  >\${escapeHtml(property.sellingPoints || "")}</textarea>
+                </div>
+
+                <br />
+
+                <div class="row">
+                  <button onclick="saveProperty('\${escapeHtml(id)}')">Save Property</button>
+                  <span id="saveStatus-\${escapeHtml(id)}"></span>
+                </div>
+              </div>
+            \`;
+          }
+
+          async function loadProperties() {
+            const status = document.getElementById("status");
+            const container = document.getElementById("properties");
+
+            status.innerHTML = '<div class="card">Loading properties...</div>';
+            container.innerHTML = "";
+
+            const response = await fetch("/api/properties");
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<div class="card error">' + escapeHtml(data.error || "Failed to load") + '</div>';
+              return;
+            }
+
+            status.innerHTML = '<div class="card">Loaded ' + data.properties.length + ' properties.</div>';
+            container.innerHTML = data.properties.map(renderProperty).join("");
+          }
+
+          loadProperties();
+        </script>
+      `
+    )
+  );
+});
+
+app.get("/specials", (req, res) => {
+  res.send(
+    pageShell(
+      "Specials",
+      `
+        <div class="card">
+          <h2>Generate Specials</h2>
+          <p class="small">
+            This still scans Guesty for open gaps. The only change is that the saved Cloudinary flyer image URL is now added to the message.
+          </p>
+
+          <div class="grid-3">
+            <div>
+              <label>From</label>
+              <input id="from" type="date" />
+            </div>
+
+            <div>
+              <label>To</label>
+              <input id="to" type="date" />
+            </div>
+
+            <div>
+              <label>Specific Listing ID Optional</label>
+              <input id="listingId" placeholder="Leave blank for all active properties" />
+            </div>
+          </div>
+
+          <br />
+
+          <button onclick="generateSpecials()">Generate Specials</button>
+        </div>
+
+        <div id="status"></div>
+        <div id="results"></div>
+
+        <script>
+          function escapeHtml(value) {
+            return String(value || "")
+              .replaceAll("&", "&amp;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;")
+              .replaceAll('"', "&quot;")
+              .replaceAll("'", "&#039;");
+          }
+
+          async function copyText(id) {
+            const el = document.getElementById(id);
+            await navigator.clipboard.writeText(el.value);
+            const status = document.getElementById("copy-" + id);
+            status.innerHTML = '<span class="success">Copied</span>';
+          }
+
+          function renderPost(post, index) {
+            const textareaId = "post-" + index;
+
+            const flyerLine = post.flyerImageUrl
+              ? '<div class="small success">Flyer URL included</div>'
+              : '<div class="small error">No flyer URL saved for this property</div>';
+
+            return \`
+              <div class="card">
+                <h3>\${escapeHtml(post.propertyTitle)}</h3>
+                <div class="small">
+                  Property ID: \${escapeHtml(post.propertyId || "")}
+                </div>
+                <div class="small">
+                  Specials found: \${post.specials.length}
+                </div>
+                \${flyerLine}
+
+                <br />
+
+                <textarea class="postbox" id="\${textareaId}">\${escapeHtml(post.message)}</textarea>
+
+                <br />
+                <br />
+
+                <div class="row">
+                  <button onclick="copyText('\${textareaId}')">Copy Message</button>
+                  <span id="copy-\${textareaId}"></span>
+                </div>
+              </div>
+            \`;
+          }
+
+          async function generateSpecials() {
+            const status = document.getElementById("status");
+            const results = document.getElementById("results");
+
+            const from = document.getElementById("from").value;
+            const to = document.getElementById("to").value;
+            const listingId = document.getElementById("listingId").value.trim();
+
+            const params = new URLSearchParams();
+
+            if (from) params.set("from", from);
+            if (to) params.set("to", to);
+            if (listingId) params.set("listingId", listingId);
+
+            status.innerHTML = '<div class="card">Scanning Guesty availability...</div>';
+            results.innerHTML = "";
+
+            const response = await fetch("/api/specials/generate?" + params.toString());
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<div class="card error">' + escapeHtml(data.error || "Failed to generate") + '</div>';
+              return;
+            }
+
+            status.innerHTML = '<div class="card">Found ' + data.propertyPosts.length + ' properties with open gaps.</div>';
+
+            if (!data.propertyPosts.length) {
+              results.innerHTML = '<div class="card">No open gaps found for the selected scan window.</div>';
+              return;
+            }
+
+            results.innerHTML = data.propertyPosts.map(renderPost).join("");
+          }
+        </script>
+      `
+    )
+  );
+});
+
+app.listen(PORT, () => {
+  console.log(`Ocean Specials server running on port ${PORT}`);
 });
