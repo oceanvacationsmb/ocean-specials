@@ -54,8 +54,6 @@ export async function ensurePropertySettingsTable() {
       listing_id TEXT PRIMARY KEY,
       short_id TEXT,
       active BOOLEAN DEFAULT TRUE,
-      selling_points TEXT,
-      direct_booking_url TEXT,
       airbnb_url TEXT,
       vrbo_url TEXT,
       flyer_image_url TEXT,
@@ -69,12 +67,12 @@ export async function ensurePropertySettingsTable() {
 
   await db.query(`
     ALTER TABLE property_settings
-    ADD COLUMN IF NOT EXISTS flyer_image_url TEXT;
+    ADD COLUMN IF NOT EXISTS short_id TEXT;
   `);
 
   await db.query(`
     ALTER TABLE property_settings
-    ADD COLUMN IF NOT EXISTS direct_booking_url TEXT;
+    ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
   `);
 
   await db.query(`
@@ -89,7 +87,7 @@ export async function ensurePropertySettingsTable() {
 
   await db.query(`
     ALTER TABLE property_settings
-    ADD COLUMN IF NOT EXISTS selling_points TEXT;
+    ADD COLUMN IF NOT EXISTS flyer_image_url TEXT;
   `);
 
   await db.query(`
@@ -108,4 +106,65 @@ export async function ensurePropertySettingsTable() {
   `);
 
   return true;
+}
+
+export async function ensureAppSettingsTable() {
+  const db = getPool();
+
+  if (!db) {
+    return false;
+  }
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      setting_key TEXT PRIMARY KEY,
+      setting_value TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  return true;
+}
+
+export async function getAppSetting(key, defaultValue = "") {
+  await ensureAppSettingsTable();
+
+  const result = await query(
+    `
+      SELECT setting_value
+      FROM app_settings
+      WHERE setting_key = $1
+      LIMIT 1
+    `,
+    [key]
+  );
+
+  if (!result.rows.length) {
+    return defaultValue;
+  }
+
+  return result.rows[0].setting_value || defaultValue;
+}
+
+export async function setAppSetting(key, value) {
+  await ensureAppSettingsTable();
+
+  await query(
+    `
+      INSERT INTO app_settings (
+        setting_key,
+        setting_value,
+        updated_at
+      )
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (setting_key)
+      DO UPDATE SET
+        setting_value = EXCLUDED.setting_value,
+        updated_at = NOW()
+    `,
+    [key, value || ""]
+  );
+
+  return value || "";
 }
