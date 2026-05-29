@@ -200,11 +200,6 @@ function isAvailableCalendarDay(day) {
   if (day.isBookable === false) return false;
   if (day.canBook === false) return false;
 
-  if (day.blocked === true) return false;
-  if (day.isBlocked === true) return false;
-  if (day.reserved === true) return false;
-  if (day.isReserved === true) return false;
-
   return false;
 }
 
@@ -334,4 +329,188 @@ function buildPost({ listing, savedProperty, gaps }) {
   const factsLine = getFactsLine(listing);
 
   const airbnbUrl = cleanText(savedProperty.airbnb_url || savedProperty.airbnbUrl);
-  const vrboUrl = cleanText
+  const vrboUrl = cleanText(savedProperty.vrbo_url || savedProperty.vrboUrl);
+  const flyerUrl = cleanText(savedProperty.flyer_url || savedProperty.flyerUrl);
+  const directUrl =
+    cleanText(savedProperty.direct_url || savedProperty.directUrl) ||
+    makeDirectUrl(listingId);
+
+  const lines = [];
+
+  lines.push(`LAST MINUTE DEALS IN "${location}"${factsLine ? ` - ${factsLine}` : ""}`);
+  lines.push("");
+  lines.push("Available dates:");
+  lines.push("");
+
+  for (const gap of gaps) {
+    lines.push(formatGapTitle(gap));
+    lines.push(`• ${formatDate(gap.startDate)} to ${formatDate(gap.endDate)} (${gap.nights} ${gap.nights === 1 ? "night" : "nights"})`);
+    lines.push("");
+  }
+
+  if (airbnbUrl) {
+    lines.push("Airbnb:");
+    lines.push(airbnbUrl);
+    lines.push("");
+  }
+
+  if (vrboUrl) {
+    lines.push("VRBO:");
+    lines.push(vrboUrl);
+    lines.push("");
+  }
+
+  lines.push("Book direct and save up to 20%:");
+  lines.push(directUrl);
+  lines.push("");
+
+  if (flyerUrl) {
+    lines.push("Flyer:");
+    lines.push(flyerUrl);
+  }
+
+  return lines.join("\n").trim();
+}
+
+function mergeListingWithSavedSettings(listing, savedProperties) {
+  const listingId = getListingId(listing);
+  const shortId = getPropertyShortId(listing);
+
+  const saved =
+    savedProperties.find((item) => item.listing_id === listingId) ||
+    savedProperties.find((item) => item.listingId === listingId) ||
+    savedProperties.find((item) => item.property_id === listingId) ||
+    savedProperties.find((item) => item.propertyId === listingId) ||
+    savedProperties.find((item) => item.short_id === shortId) ||
+    savedProperties.find((item) => item.shortId === shortId) ||
+    {};
+
+  return {
+    listing,
+    savedProperty: saved,
+    listingId,
+    shortId,
+    active: saved.active !== false && saved.is_active !== false
+  };
+}
+
+async function scanProperty(property, scanFrom, scanTo) {
+  const {
+    listing,
+    savedProperty,
+    listingId,
+    shortId
+  } = property;
+
+  console.log(`Scanning ${shortId} ${listingId}`);
+
+  try {
+    const calendar = await getListingCalendar(listingId, scanFrom, scanTo);
+    const calendarDays = normalizeCalendarDays(calendar);
+    const gaps = findAvailableGaps(calendar, 1, 60);
+
+    return {
+      listingId,
+      shortId,
+      title: listing.title || listing.nickname || shortId,
+      specials: gaps,
+      gaps,
+      error: null,
+      calendarDaysCount: calendarDays.length,
+      availableDaysCount: calendarDays.filter((day) => isAvailableCalendarDay(day)).length,
+      firstCalendarDay: calendarDays[0] || null,
+      post: gaps.length
+        ? buildPost({
+            listing,
+            savedProperty,
+            gaps
+          })
+        : ""
+    };
+  } catch (error) {
+    return {
+      listingId,
+      shortId,
+      title: listing.title || listing.nickname || shortId,
+      specials: [],
+      gaps: [],
+      error: error.message || "Calendar scan failed",
+      calendarDaysCount: 0,
+      availableDaysCount: 0,
+      firstCalendarDay: null,
+      post: ""
+    };
+  }
+}
+
+export async function generateSpecials() {
+  const scanFrom = getTodayPlusDays(2);
+  const scanTo = addDays(scanFrom, 60);
+
+  const listingsResponse = await getAllListings();
+  const listings = normalizeListingsResponse(listingsResponse);
+
+  const savedProperties = await loadSavedProperties();
+
+  const managedProperties = listings
+    .map((listing) => mergeListingWithSavedSettings(listing, savedProperties))
+    .filter((property) => property.active);
+
+  const propertyResults = [];
+
+  for (const property of managedProperties) {
+    const result = await scanProperty(property, scanFrom, scanTo);
+    propertyResults.push(result);
+
+    await sleep(500);
+  }
+
+  const propertyPosts = propertyResults
+    .filter((result) => result.specials.length > 0)
+    .map((result) => ({
+      listingId: result.listingId,
+      shortId: result.shortId,
+      title: result.title,
+      propertyTitle: result.title,
+      propertyId: result.shortId,
+      specials: result.specials,
+      gaps: result.gaps,
+      message: result.post,
+      post: result.post
+    }));
+
+  return {
+    ok: true,
+
+    scan: {
+      from: scanFrom,
+      to: scanTo,
+      days: 60
+    },
+
+    period: {
+      from: scanFrom,
+      to: scanTo
+    },
+
+    range: {
+      from: scanFrom,
+      to: scanTo
+    },
+
+    scanRange: {
+      from: scanFrom,
+      to: scanTo
+    },
+
+    scanFrom,
+    scanTo,
+    scanDays: 60,
+
+    totalProperties: managedProperties.length,
+    foundProperties: propertyPosts.length,
+
+    propertyPosts,
+    results: propertyResults
+  };
+}
