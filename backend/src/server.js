@@ -893,7 +893,23 @@ app.get("/specials", (req, res) => {
               return;
             }
 
-            results.innerHTML = data.propertyPosts.map(renderPost).join("");
+            const allResults = Array.isArray(data.results) ? data.results : [];
+
+const debugHtml =
+  '<details class="card">'
+  + '<summary style="font-weight:800; cursor:pointer;">Scan Debug: All Properties Checked</summary>'
+  + '<br />'
+  + allResults.map((result) => {
+      const title = result.property?.propertyTitle || result.property?.propertyId || "Unknown";
+      const id = result.property?.propertyId || "";
+      const gapCount = Array.isArray(result.specials) ? result.specials.length : 0;
+      const error = result.error ? " ERROR: " + result.error : "";
+
+      return escapeHtml(id + " - " + title + " - gaps found: " + gapCount + error);
+    }).join("<br />")
+  + '</details>';
+
+results.innerHTML = debugHtml + data.propertyPosts.map(renderPost).join("");
           }
 
           async function startPage() {
