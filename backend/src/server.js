@@ -605,21 +605,11 @@ app.get("/specials", (req, res) => {
             Specials scan automatically when this page opens. Default is 15 days starting 2 days from today.
           </p>
 
-          <details>
-            <summary style="font-weight:800; cursor:pointer;">Period</summary>
+         <div class="small">
+  Period: Today + 2 days through the next 60 days
+</div>
 
-            <br />
-
-            <div class="grid">
-              <div>
-                <label>Scan Filter</label>
-                <select id="scanDays" onchange="generateSpecials()">
-                  <option value="15">15 days</option>
-                  <option value="30">30 days</option>
-                </select>
-              </div>
-            </div>
-          </details>
+<input id="scanDays" type="hidden" value="60" />
         </div>
 
         <details class="card">
