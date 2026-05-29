@@ -54,29 +54,21 @@ function formatDate(date) {
 }
 
 async function loadSavedProperties() {
-  if (typeof db.getManagedProperties === "function") {
-    const rows = await db.getManagedProperties();
-    return Array.isArray(rows) ? rows : [];
-  }
+  const possibleFunctions = [
+    "getManagedProperties",
+    "getAllManagedProperties",
+    "getProperties",
+    "getPropertySettings",
+    "getAllPropertySettings",
+    "listManagedProperties",
+    "listProperties"
+  ];
 
-  if (typeof db.getAllManagedProperties === "function") {
-    const rows = await db.getAllManagedProperties();
-    return Array.isArray(rows) ? rows : [];
-  }
-
-  if (typeof db.getProperties === "function") {
-    const rows = await db.getProperties();
-    return Array.isArray(rows) ? rows : [];
-  }
-
-  if (typeof db.getPropertySettings === "function") {
-    const rows = await db.getPropertySettings();
-    return Array.isArray(rows) ? rows : [];
-  }
-
-  if (typeof db.getAllPropertySettings === "function") {
-    const rows = await db.getAllPropertySettings();
-    return Array.isArray(rows) ? rows : [];
+  for (const name of possibleFunctions) {
+    if (typeof db[name] === "function") {
+      const rows = await db[name]();
+      return Array.isArray(rows) ? rows : [];
+    }
   }
 
   return [];
@@ -86,7 +78,6 @@ function normalizeListingsResponse(data) {
   if (!data) return [];
 
   if (Array.isArray(data)) return data;
-
   if (Array.isArray(data.results)) return data.results;
   if (Array.isArray(data.listings)) return data.listings;
   if (Array.isArray(data.data)) return data.data;
@@ -103,26 +94,26 @@ function normalizeCalendarDays(calendarData) {
 
   if (Array.isArray(calendarData)) return calendarData;
 
-  if (Array.isArray(calendarData.days)) return calendarData.days;
-  if (Array.isArray(calendarData.calendar)) return calendarData.calendar;
-  if (Array.isArray(calendarData.results)) return calendarData.results;
-  if (Array.isArray(calendarData.data)) return calendarData.data;
-  if (Array.isArray(calendarData.result)) return calendarData.result;
+  const paths = [
+    calendarData.days,
+    calendarData.calendar,
+    calendarData.results,
+    calendarData.data,
+    calendarData.result,
+    calendarData.result?.days,
+    calendarData.result?.calendar,
+    calendarData.result?.results,
+    calendarData.result?.data,
+    calendarData.data?.days,
+    calendarData.data?.calendar,
+    calendarData.data?.results
+  ];
 
-  if (calendarData.result) {
-    if (Array.isArray(calendarData.result.days)) return calendarData.result.days;
-    if (Array.isArray(calendarData.result.calendar)) return calendarData.result.calendar;
-    if (Array.isArray(calendarData.result.results)) return calendarData.result.results;
-    if (Array.isArray(calendarData.result.data)) return calendarData.result.data;
+  for (const value of paths) {
+    if (Array.isArray(value)) return value;
   }
 
-  if (calendarData.data) {
-    if (Array.isArray(calendarData.data.days)) return calendarData.data.days;
-    if (Array.isArray(calendarData.data.calendar)) return calendarData.data.calendar;
-    if (Array.isArray(calendarData.data.results)) return calendarData.data.results;
-  }
-
-  const objectSources = [
+  const objectPaths = [
     calendarData.calendar,
     calendarData.days,
     calendarData.data,
@@ -131,7 +122,7 @@ function normalizeCalendarDays(calendarData) {
     calendarData.result?.data
   ];
 
-  for (const source of objectSources) {
+  for (const source of objectPaths) {
     if (source && typeof source === "object" && !Array.isArray(source)) {
       return Object.entries(source).map(([date, value]) => ({
         date,
@@ -164,22 +155,22 @@ function isAvailableCalendarDay(day) {
     day.availability ||
     day.availableStatus ||
     day.state ||
-    day.blockedReason ||
-    day.reason ||
     ""
   ).toLowerCase();
+
+  if (typeof day.allotment === "number") {
+    return day.allotment > 0;
+  }
 
   if (day.available === true) return true;
   if (day.isAvailable === true) return true;
   if (day.bookable === true) return true;
   if (day.isBookable === true) return true;
   if (day.canBook === true) return true;
-  if (day.canCheckIn === true && day.canCheckOut === true) return true;
 
   if (status === "available") return true;
   if (status === "bookable") return true;
   if (status === "free") return true;
-  if (status.includes("available") && !status.includes("unavailable")) return true;
 
   if (day.available === false) return false;
   if (day.isAvailable === false) return false;
@@ -187,14 +178,10 @@ function isAvailableCalendarDay(day) {
   if (day.isBookable === false) return false;
   if (day.canBook === false) return false;
 
-  if (
-    day.blocked === true ||
-    day.isBlocked === true ||
-    day.reserved === true ||
-    day.isReserved === true
-  ) {
-    return false;
-  }
+  if (day.blocked === true) return false;
+  if (day.isBlocked === true) return false;
+  if (day.reserved === true) return false;
+  if (day.isReserved === true) return false;
 
   if (
     status.includes("blocked") ||
@@ -485,6 +472,11 @@ export async function generateSpecials() {
 
   return {
     ok: true,
+
+    period: {
+      from: scanFrom,
+      to: scanTo
+    },
 
     range: {
       from: scanFrom,
