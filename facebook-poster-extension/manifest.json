@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Ocean Specials Facebook Poster",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Opens Facebook groups in tiled windows and fills Ocean Specials post text.",
   "permissions": [
     "tabs",
     "windows",
     "storage",
-    "scripting"
+    "scripting",
+    "system.display"
   ],
   "host_permissions": [
     "https://www.facebook.com/*",
