@@ -1,371 +1,508 @@
-import { getListingCalendar } from "./guestyApi.js";
-import { findAvailableGaps } from "./gapFinder.js";
-import { getManagedProperties } from "./propertyManager.js";
+import {
+  getAllListings,
+  getListingCalendar
+} from "./guestyApi.js";
+
+import {
+  getManagedProperties
+} from "./db.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function addDays(date, days) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
-}
-
-function toYmd(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function diffDays(startYmd, endYmd) {
-  const start = new Date(startYmd + "T00:00:00");
-  const end = new Date(endYmd + "T00:00:00");
-
-  return Math.round((end - start) / (1000 * 60 * 60 * 24));
-}
-
-function niceDate(ymd) {
-  const date = new Date(ymd + "T00:00:00");
-
-  return date.toLocaleDateString("en-US", {
+function formatDate(date) {
+  const d = new Date(`${date}T00:00:00`);
+  return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric"
   });
 }
 
-function addOrUpdateParams(url, params) {
-  if (!url) return "";
+function getDateOnly(value) {
+  if (!value) return "";
 
-  try {
-    const parsed = new URL(url);
+  if (typeof value === "string") {
+    return value.slice(0, 10);
+  }
 
-    for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && value !== null && value !== "") {
-        parsed.searchParams.set(key, value);
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return "";
+}
+
+function addDays(dateString, days) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function diffNights(startDate, endDate) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  return Math.round((end - start) / 86400000);
+}
+
+function getTodayPlusDays(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeListingsResponse(data) {
+  if (!data) return [];
+
+  if (Array.isArray(data)) return data;
+
+  if (Array.isArray(data.results)) return data.results;
+  if (Array.isArray(data.listings)) return data.listings;
+  if (Array.isArray(data.data)) return data.data;
+
+  if (data.result && Array.isArray(data.result.results)) return data.result.results;
+  if (data.result && Array.isArray(data.result.listings)) return data.result.listings;
+  if (data.result && Array.isArray(data.result.data)) return data.result.data;
+
+  return [];
+}
+
+function normalizeCalendarDays(calendarData) {
+  if (!calendarData) return [];
+
+  if (Array.isArray(calendarData)) {
+    return calendarData;
+  }
+
+  if (Array.isArray(calendarData.days)) {
+    return calendarData.days;
+  }
+
+  if (Array.isArray(calendarData.calendar)) {
+    return calendarData.calendar;
+  }
+
+  if (Array.isArray(calendarData.result)) {
+    return calendarData.result;
+  }
+
+  if (Array.isArray(calendarData.results)) {
+    return calendarData.results;
+  }
+
+  if (Array.isArray(calendarData.data)) {
+    return calendarData.data;
+  }
+
+  if (calendarData.result && Array.isArray(calendarData.result.days)) {
+    return calendarData.result.days;
+  }
+
+  if (calendarData.result && Array.isArray(calendarData.result.calendar)) {
+    return calendarData.result.calendar;
+  }
+
+  if (calendarData.result && Array.isArray(calendarData.result.results)) {
+    return calendarData.result.results;
+  }
+
+  if (calendarData.result && Array.isArray(calendarData.result.data)) {
+    return calendarData.result.data;
+  }
+
+  if (calendarData.calendar && typeof calendarData.calendar === "object") {
+    return Object.entries(calendarData.calendar).map(([date, value]) => ({
+      date,
+      ...(value || {})
+    }));
+  }
+
+  if (calendarData.days && typeof calendarData.days === "object") {
+    return Object.entries(calendarData.days).map(([date, value]) => ({
+      date,
+      ...(value || {})
+    }));
+  }
+
+  if (calendarData.data && typeof calendarData.data === "object") {
+    return Object.entries(calendarData.data).map(([date, value]) => ({
+      date,
+      ...(value || {})
+    }));
+  }
+
+  if (calendarData.result && typeof calendarData.result === "object") {
+    const result = calendarData.result;
+
+    if (result.calendar && typeof result.calendar === "object") {
+      return Object.entries(result.calendar).map(([date, value]) => ({
+        date,
+        ...(value || {})
+      }));
+    }
+
+    if (result.days && typeof result.days === "object") {
+      return Object.entries(result.days).map(([date, value]) => ({
+        date,
+        ...(value || {})
+      }));
+    }
+
+    if (result.data && typeof result.data === "object") {
+      return Object.entries(result.data).map(([date, value]) => ({
+        date,
+        ...(value || {})
+      }));
+    }
+  }
+
+  return Object.entries(calendarData)
+    .filter(([key]) => /^\d{4}-\d{2}-\d{2}$/.test(key))
+    .map(([date, value]) => ({
+      date,
+      ...(value || {})
+    }));
+}
+
+function getCalendarDayDate(day) {
+  return (
+    getDateOnly(day.date) ||
+    getDateOnly(day.day) ||
+    getDateOnly(day.currentDate) ||
+    getDateOnly(day.startDate) ||
+    getDateOnly(day.from)
+  );
+}
+
+function isAvailableCalendarDay(day) {
+  const status = String(
+    day.status ||
+    day.availability ||
+    day.availableStatus ||
+    day.state ||
+    day.blockedReason ||
+    ""
+  ).toLowerCase();
+
+  if (day.available === true) return true;
+  if (day.isAvailable === true) return true;
+  if (day.bookable === true) return true;
+  if (day.isBookable === true) return true;
+  if (day.canBook === true) return true;
+
+  if (status === "available") return true;
+  if (status === "bookable") return true;
+  if (status.includes("available") && !status.includes("unavailable")) return true;
+
+  if (day.available === false) return false;
+  if (day.isAvailable === false) return false;
+  if (day.bookable === false) return false;
+  if (day.isBookable === false) return false;
+  if (day.canBook === false) return false;
+
+  if (
+    status.includes("blocked") ||
+    status.includes("reserved") ||
+    status.includes("unavailable") ||
+    status.includes("booked") ||
+    status.includes("occupied")
+  ) {
+    return false;
+  }
+
+  if (day.blocked === true) return false;
+  if (day.isBlocked === true) return false;
+  if (day.reserved === true) return false;
+  if (day.isReserved === true) return false;
+
+  return false;
+}
+
+function findAvailableGaps(calendarData, minNights = 1, maxNights = 60) {
+  const calendarDays = normalizeCalendarDays(calendarData)
+    .map((day) => ({
+      ...day,
+      _date: getCalendarDayDate(day),
+      _available: isAvailableCalendarDay(day)
+    }))
+    .filter((day) => day._date)
+    .sort((a, b) => a._date.localeCompare(b._date));
+
+  const gaps = [];
+  let gapStart = null;
+  let previousDate = null;
+
+  for (const day of calendarDays) {
+    const currentDate = day._date;
+
+    if (day._available) {
+      if (!gapStart) {
+        gapStart = currentDate;
+      }
+
+      previousDate = currentDate;
+      continue;
+    }
+
+    if (gapStart && previousDate) {
+      const gapEnd = addDays(previousDate, 1);
+      const nights = diffNights(gapStart, gapEnd);
+
+      if (nights >= minNights && nights <= maxNights) {
+        gaps.push({
+          startDate: gapStart,
+          endDate: gapEnd,
+          nights
+        });
       }
     }
 
-    return parsed.toString();
-  } catch (error) {
-    return url;
-  }
-}
-
-function buildDirectBookingUrl(property) {
-  return `https://oceanvacationsmb.guestybookings.com/properties/${property.listingId}`;
-}
-
-function buildGenericLinks(property) {
-  return {
-    airbnb: property.airbnbUrl || "",
-    vrbo: property.vrboUrl || "",
-    direct: buildDirectBookingUrl(property)
-  };
-}
-
-function buildDatedLinks(property, checkIn, checkOut) {
-  const generic = buildGenericLinks(property);
-
-  return {
-    airbnb: addOrUpdateParams(generic.airbnb, {
-      check_in: checkIn,
-      check_out: checkOut
-    }),
-    vrbo: addOrUpdateParams(generic.vrbo, {
-      arrival: checkIn,
-      departure: checkOut
-    }),
-    direct: addOrUpdateParams(generic.direct, {
-      checkIn,
-      checkOut
-    })
-  };
-}
-
-function buildFactsLine(property) {
-  const parts = [];
-
-  if (property.bedrooms) {
-    parts.push(`${property.bedrooms} Bedrooms`);
+    gapStart = null;
+    previousDate = currentDate;
   }
 
-  if (property.bathrooms) {
-    parts.push(`${property.bathrooms} Bathrooms`);
-  }
+  if (gapStart && previousDate) {
+    const gapEnd = addDays(previousDate, 1);
+    const nights = diffNights(gapStart, gapEnd);
 
-  if (property.sleeps) {
-    parts.push(`Sleeps ${property.sleeps}`);
-  }
-
-  return parts.join(" • ");
-}
-
-function choosePostLinks(property, specials) {
-  const sorted = [...specials].sort((a, b) =>
-    a.checkIn.localeCompare(b.checkIn)
-  );
-
-  if (sorted.length === 1 && sorted[0].nights <= 4) {
-    return buildDatedLinks(property, sorted[0].checkIn, sorted[0].checkOut);
-  }
-
-  return buildGenericLinks(property);
-}
-
-function formatGapLine(gap) {
-  const nightText = gap.nights === 1 ? "1 night" : `${gap.nights} nights`;
-
-  return `• ${gap.checkInNice} to ${gap.checkOutNice} (${nightText})`;
-}
-
-function buildAvailabilitySections(specials) {
-  const sorted = [...specials].sort((a, b) =>
-    a.checkIn.localeCompare(b.checkIn)
-  );
-
-  if (!sorted.length) {
-    return "Contact us for open dates.";
-  }
-
-  const sections = [];
-
-  for (const gap of sorted) {
-    const gapNights = gap.nights || diffDays(gap.checkIn, gap.checkOut);
-    const nightText = gapNights === 1 ? "1 night" : `${gapNights} nights`;
-
-    if (gapNights >= 4) {
-      sections.push(
-        `Flexible availability between ${gap.checkInNice} and ${gap.checkOutNice}:\n${formatGapLine({
-          ...gap,
-          nights: gapNights
-        })}`
-      );
-    } else {
-      sections.push(
-        `Available now for ${nightText} between ${gap.checkInNice} and ${gap.checkOutNice}:\n${formatGapLine({
-          ...gap,
-          nights: gapNights
-        })}`
-      );
+    if (nights >= minNights && nights <= maxNights) {
+      gaps.push({
+        startDate: gapStart,
+        endDate: gapEnd,
+        nights
+      });
     }
   }
 
-  return `Available dates:\n\n${sections.join("\n\n")}`;
+  return gaps;
 }
 
-function buildLinksSection(postLinks, flyerImageUrl) {
+function getListingId(listing) {
+  return listing._id || listing.id || listing.listingId || "";
+}
+
+function getPropertyShortId(listing) {
+  const nickname = listing.nickname || listing.title || "";
+  const match = nickname.match(/\b\d{3,5}(?:[-/]\d+)?[A-Z]?\b/i);
+
+  if (match) {
+    return match[0];
+  }
+
+  return getListingId(listing).slice(-6);
+}
+
+function cleanText(value) {
+  return String(value || "").trim();
+}
+
+function getLocation(listing, savedProperty = {}) {
+  return (
+    cleanText(savedProperty.location) ||
+    cleanText(listing.address?.city) ||
+    cleanText(listing.city) ||
+    "North Myrtle Beach"
+  );
+}
+
+function getBedrooms(listing) {
+  return Number(listing.bedrooms || listing.bedroomsCount || 0);
+}
+
+function getBathrooms(listing) {
+  return Number(listing.bathrooms || listing.bathroomsCount || 0);
+}
+
+function getSleeps(listing) {
+  return Number(listing.accommodates || listing.sleeps || listing.guests || 0);
+}
+
+function getFactsLine(listing) {
+  const facts = [];
+
+  const bedrooms = getBedrooms(listing);
+  const bathrooms = getBathrooms(listing);
+  const sleeps = getSleeps(listing);
+
+  if (bedrooms) facts.push(`${bedrooms} Bedrooms`);
+  if (bathrooms) facts.push(`${bathrooms} Bathrooms`);
+  if (sleeps) facts.push(`Sleeps ${sleeps}`);
+
+  return facts.join(" • ");
+}
+
+function makeDirectUrl(listingId) {
+  return `https://oceanvacationsmb.guestybookings.com/properties/${listingId}`;
+}
+
+function formatGapTitle(gap) {
+  const start = formatDate(gap.startDate);
+  const end = formatDate(gap.endDate);
+
+  if (gap.nights >= 4) {
+    return `Flexible availability between ${start} and ${end}:`;
+  }
+
+  const nightLabel = gap.nights === 1 ? "night" : "nights";
+
+  return `Available now for ${gap.nights} ${nightLabel} between ${start} and ${end}:`;
+}
+
+function buildPost(property) {
+  const {
+    listing,
+    savedProperty,
+    gaps
+  } = property;
+
+  const listingId = getListingId(listing);
+  const location = getLocation(listing, savedProperty);
+  const factsLine = getFactsLine(listing);
+
+  const airbnbUrl = cleanText(savedProperty.airbnb_url || savedProperty.airbnbUrl);
+  const vrboUrl = cleanText(savedProperty.vrbo_url || savedProperty.vrboUrl);
+  const flyerUrl = cleanText(savedProperty.flyer_url || savedProperty.flyerUrl);
+  const directUrl = cleanText(savedProperty.direct_url || savedProperty.directUrl) || makeDirectUrl(listingId);
+
   const lines = [];
 
-  if (postLinks.airbnb) {
-    lines.push(`Airbnb:
-${postLinks.airbnb}`);
+  lines.push(`LAST MINUTE DEALS IN "${location}"${factsLine ? ` - ${factsLine}` : ""}`);
+  lines.push("");
+  lines.push("Available dates:");
+  lines.push("");
+
+  for (const gap of gaps) {
+    lines.push(formatGapTitle(gap));
+    lines.push(`• ${formatDate(gap.startDate)} to ${formatDate(gap.endDate)} (${gap.nights} ${gap.nights === 1 ? "night" : "nights"})`);
+    lines.push("");
   }
 
-  if (postLinks.vrbo) {
-    lines.push(`VRBO:
-${postLinks.vrbo}`);
+  if (airbnbUrl) {
+    lines.push("Airbnb:");
+    lines.push(airbnbUrl);
+    lines.push("");
   }
 
-  if (postLinks.direct) {
-    lines.push(`Book direct and save up to 20%:
-${postLinks.direct}`);
+  if (vrboUrl) {
+    lines.push("VRBO:");
+    lines.push(vrboUrl);
+    lines.push("");
   }
 
-  if (flyerImageUrl) {
-    lines.push(`Flyer:
-${flyerImageUrl}`);
+  lines.push("Book direct and save up to 20%:");
+  lines.push(directUrl);
+  lines.push("");
+
+  if (flyerUrl) {
+    lines.push("Flyer:");
+    lines.push(flyerUrl);
   }
 
-  return lines.join("\n\n");
+  return lines.join("\n").trim();
 }
 
-function createPropertyPost(property, specials) {
-  const sortedSpecials = [...specials].sort((a, b) =>
-    a.checkIn.localeCompare(b.checkIn)
-  );
+function mergeListingWithSavedSettings(listing, savedProperties) {
+  const listingId = getListingId(listing);
+  const shortId = getPropertyShortId(listing);
 
-  const facts = buildFactsLine(property);
-  const availabilitySections = buildAvailabilitySections(sortedSpecials);
-  const postLinks = choosePostLinks(property, sortedSpecials);
-  const linksSection = buildLinksSection(postLinks, property.flyerImageUrl);
-
-  const titleLine = facts
-    ? `LAST MINUTE DEALS IN "${property.location}" - ${facts}`
-    : `LAST MINUTE DEALS IN "${property.location}"`;
-
-  const message = `${titleLine}
-
-${availabilitySections}
-
-${linksSection}`;
+  const saved =
+    savedProperties.find((item) => item.listing_id === listingId) ||
+    savedProperties.find((item) => item.listingId === listingId) ||
+    savedProperties.find((item) => item.property_id === listingId) ||
+    savedProperties.find((item) => item.propertyId === listingId) ||
+    savedProperties.find((item) => item.short_id === shortId) ||
+    savedProperties.find((item) => item.shortId === shortId) ||
+    {};
 
   return {
-    propertyId: property.propertyId,
-    listingId: property.listingId,
-    propertyTitle: property.propertyTitle,
-    location: property.location,
-    bedrooms: property.bedrooms,
-    bathrooms: property.bathrooms,
-    sleeps: property.sleeps,
-
-    photoUrl: property.photoUrl,
-    photoUrls: property.photoUrls || [],
-    flyerImageUrl: property.flyerImageUrl || "",
-
-    airbnbUrl: property.airbnbUrl,
-    vrboUrl: property.vrboUrl,
-
-    postAirbnbLink: postLinks.airbnb,
-    postVrboLink: postLinks.vrbo,
-    postDirectLink: postLinks.direct,
-
-    specials: sortedSpecials,
-    message
+    listing,
+    savedProperty: saved,
+    listingId,
+    shortId,
+    active: saved.active !== false && saved.is_active !== false
   };
 }
 
-function convertManagedProperty(property) {
-  return {
-    listingId: property.listingId,
-    propertyId: property.shortId,
-    propertyTitle: property.title,
-    location: property.city || "North Myrtle Beach",
-    bedrooms: property.bedrooms,
-    bathrooms: property.bathrooms,
-    sleeps: property.sleeps,
+async function scanProperty(property, scanFrom, scanTo) {
+  const {
+    listing,
+    savedProperty,
+    listingId,
+    shortId
+  } = property;
 
-    photoUrl: property.picture,
-    photoUrls: property.pictures || [],
+  try {
+    const calendar = await getListingCalendar(listingId, scanFrom, scanTo);
+    const gaps = findAvailableGaps(calendar, 1, 60);
 
-    airbnbUrl: property.airbnbUrl,
-    vrboUrl: property.vrboUrl,
-    flyerImageUrl: property.flyerImageUrl || "",
-
-    minNights: 1,
-    maxNights: 60,
-    scanDays: 60,
-
-    active: property.active !== false
-  };
-}
-
-async function getListingCalendarWithRetry(listingId, scanFromYmd, scanToYmd) {
-  const maxAttempts = 4;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await getListingCalendar(listingId, scanFromYmd, scanToYmd);
-    } catch (error) {
-      const status = error.response?.status;
-
-      if (status !== 429 || attempt === maxAttempts) {
-        throw error;
-      }
-
-      const waitMs = attempt * 3500;
-
-      console.log(
-        `Guesty rate limit for ${listingId}. Retry ${attempt}/${maxAttempts} in ${waitMs}ms`
-      );
-
-      await sleep(waitMs);
-    }
+    return {
+      listingId,
+      shortId,
+      title: listing.title || listing.nickname || shortId,
+      specials: gaps,
+      gaps,
+      error: null,
+      post: gaps.length
+        ? buildPost({
+            listing,
+            savedProperty,
+            gaps
+          })
+        : ""
+    };
+  } catch (error) {
+    return {
+      listingId,
+      shortId,
+      title: listing.title || listing.nickname || shortId,
+      specials: [],
+      gaps: [],
+      error: error.message || "Calendar scan failed",
+      post: ""
+    };
   }
-
-  throw new Error("Calendar retry failed");
 }
 
-async function scanProperty(property, scanFromYmd, scanToYmd) {
-  const calendar = await getListingCalendarWithRetry(
-    property.listingId,
-    scanFromYmd,
-    scanToYmd
-  );
+export async function generateSpecials() {
+  const scanFrom = getTodayPlusDays(2);
+  const scanTo = addDays(scanFrom, 60);
 
-  const calendarDays =
-    calendar.days ||
-    calendar.results ||
-    calendar.data ||
-    calendar.calendar ||
-    calendar;
+  const listingsResponse = await getAllListings();
+  const listings = normalizeListingsResponse(listingsResponse);
 
-  const gaps = findAvailableGaps(
-    calendarDays,
-    1,
-    60
-  );
+  const savedProperties = await getManagedProperties();
 
-  const specials = gaps.map((gap) => ({
-    ...gap,
-    nights: gap.nights || diffDays(gap.checkIn, gap.checkOut),
-    checkInNice: niceDate(gap.checkIn),
-    checkOutNice: niceDate(gap.checkOut)
-  }));
-
-  return {
-    property,
-    specials
-  };
-}
-
-export async function generateSpecials(selectedPropertyIds = [], options = {}) {
-  const today = new Date();
-
-  const scanDays = 60;
-
-  const startDate = addDays(today, 2);
-  const scanFromYmd = toYmd(startDate);
-  const scanToYmd = toYmd(addDays(startDate, scanDays));
-
-  const managedProperties = await getManagedProperties();
-
-  const selectedSet = new Set(
-    Array.isArray(selectedPropertyIds)
-      ? selectedPropertyIds.filter(Boolean)
-      : []
-  );
-
-  const properties = managedProperties
-    .filter((property) => property.active !== false)
-    .filter((property) => {
-      if (!selectedSet.size) return true;
-      return selectedSet.has(property.listingId);
-    })
-    .map(convertManagedProperty);
+  const managedProperties = listings
+    .map((listing) => mergeListingWithSavedSettings(listing, savedProperties))
+    .filter((property) => property.active);
 
   const propertyResults = [];
 
-  for (const property of properties) {
-    try {
-      console.log(`Scanning ${property.propertyId} ${property.listingId}`);
+  for (const property of managedProperties) {
+    const result = await scanProperty(property, scanFrom, scanTo);
+    propertyResults.push(result);
 
-      const result = await scanProperty(property, scanFromYmd, scanToYmd);
-
-      propertyResults.push(result);
-
-      await sleep(500);
-    } catch (error) {
-      propertyResults.push({
-        property,
-        specials: [],
-        error: error.message
-      });
-
-      await sleep(500);
-    }
+    await sleep(500);
   }
 
   const propertyPosts = propertyResults
-    .filter((result) => result.specials.length)
-    .map((result) => createPropertyPost(result.property, result.specials));
+    .filter((result) => result.specials.length > 0)
+    .map((result) => ({
+      listingId: result.listingId,
+      shortId: result.shortId,
+      title: result.title,
+      specials: result.specials,
+      message: result.post,
+      post: result.post
+    }));
 
   return {
     ok: true,
-    scan: {
-      from: scanFromYmd,
-      to: scanToYmd,
-      days: scanDays
-    },
-    count: propertyPosts.length,
+    scanFrom,
+    scanTo,
+    scanDays: 60,
+    totalProperties: managedProperties.length,
+    foundProperties: propertyPosts.length,
     propertyPosts,
     results: propertyResults
   };
