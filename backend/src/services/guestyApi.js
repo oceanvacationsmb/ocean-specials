@@ -82,27 +82,29 @@ async function getAccessToken() {
   return tokenPromise;
 }
 
-function getRetryAfterMs(error, fallbackMs = 10000) {
-  const retryAfter = error.response?.headers?.["retry-after"];
+async function guestyRequest(config) {
+  try {
+    const token = await getAccessToken();
 
-  if (!retryAfter) {
-    return fallbackMs;
-  }
+    const response = await axios({
+      baseURL: GUESTY_BASE_URL,
+      timeout: 60000,
+      ...config,
+      headers: {
+        accept: "application/json",
+        ...(config.headers || {}),
+        Authorization: `Bearer ${token}`
+      }
+    });
 
-  const seconds = Number(retryAfter);
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 401) {
+      accessToken = null;
+      tokenExpiresAt = 0;
 
-  if (!Number.isNaN(seconds) && seconds > 0) {
-    return seconds * 1000;
-  }
+      await sleep(1500);
 
-  return fallbackMs;
-}
-
-async function guestyRequest(config, options = {}) {
-  const maxRetries = options.maxRetries || 3;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
       const token = await getAccessToken();
 
       const response = await axios({
@@ -110,31 +112,22 @@ async function guestyRequest(config, options = {}) {
         timeout: 60000,
         ...config,
         headers: {
+          accept: "application/json",
           ...(config.headers || {}),
           Authorization: `Bearer ${token}`
         }
       });
 
       return response.data;
-    } catch (error) {
-      const status = error.response?.status;
-
-      if (status === 401) {
-        accessToken = null;
-        tokenExpiresAt = 0;
-
-        if (attempt < maxRetries) {
-          await sleep(3000);
-          continue;
-        }
-      }
-
-      if (status === 429) {
-        throw error;
-      }
-
-      throw error;
     }
+
+    const details = error.response?.data
+      ? JSON.stringify(error.response.data)
+      : "";
+
+    throw new Error(
+      `Guesty request failed ${error.response?.status || ""} ${details}`
+    );
   }
 }
 
@@ -158,17 +151,21 @@ export async function getAllListings() {
   });
 }
 
-export async function getListingCalendar(listingId, startDate, endDate) {
+export async function getListingCalendar(listingId, from, to) {
   if (!listingId) {
     throw new Error("Missing listingId");
+  }
+
+  if (!from || !to) {
+    throw new Error("Missing calendar from/to dates");
   }
 
   return guestyRequest({
     method: "GET",
     url: `/listings/${listingId}/calendar`,
     params: {
-      startDate,
-      endDate
+      from,
+      to
     }
   });
 }
