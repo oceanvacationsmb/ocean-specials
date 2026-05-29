@@ -693,7 +693,7 @@ app.get("/specials", (req, res) => {
         <div class="card">
           <h2>Generate Specials</h2>
           <p class="small">
-            Specials scan automatically when this page opens. Default is 15 days starting 2 days from today.
+            Specials scan automatically when this page opens. Default is 60 days starting 2 days from today.
           </p>
 
          <div class="small">
