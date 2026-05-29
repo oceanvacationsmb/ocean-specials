@@ -114,10 +114,6 @@ function pageShell(title, body) {
             font-size: 14px;
           }
 
-          textarea {
-            min-height: 85px;
-          }
-
           button {
             background: #0f8f9f;
             color: white;
@@ -130,10 +126,6 @@ function pageShell(title, body) {
 
           button.secondary {
             background: #062f53;
-          }
-
-          button.danger {
-            background: #b42318;
           }
 
           .row {
@@ -161,14 +153,6 @@ function pageShell(title, body) {
             object-fit: cover;
             border-radius: 10px;
             background: #e5e7eb;
-          }
-
-          pre {
-            white-space: pre-wrap;
-            background: #f8fafc;
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
           }
 
           .postbox {
@@ -234,6 +218,7 @@ app.get("/api/test", (req, res) => {
 app.get("/api/guesty/test", async (req, res) => {
   try {
     const result = await testGuestyConnection();
+
     res.json({
       ok: true,
       result
@@ -250,6 +235,7 @@ app.get("/api/guesty/test", async (req, res) => {
 app.get("/api/guesty/listings-test", async (req, res) => {
   try {
     const result = await getAllListings();
+
     res.json({
       ok: true,
       result
@@ -322,7 +308,6 @@ app.get("/api/properties", async (req, res) => {
 app.put("/api/properties/:listingId", async (req, res) => {
   try {
     const listingId = req.params.listingId;
-
     const saved = await saveManagedProperty(listingId, req.body || {});
 
     res.json({
@@ -342,7 +327,6 @@ app.put("/api/properties/:listingId", async (req, res) => {
 app.post("/api/properties/:listingId", async (req, res) => {
   try {
     const listingId = req.params.listingId;
-
     const saved = await saveManagedProperty(listingId, req.body || {});
 
     res.json({
@@ -403,7 +387,8 @@ app.get("/properties", (req, res) => {
         <div class="card">
           <h2>Property Dashboard</h2>
           <p class="small">
-            Add the Airbnb URL, VRBO URL, Direct Booking URL, and the Cloudinary flyer image URL for each property.
+            Guesty supplies the property title, bedrooms, bathrooms, sleeps, city, and main photo automatically.
+            You only need to add Airbnb, VRBO, and the Cloudinary flyer image URL.
           </p>
           <button onclick="loadProperties()">Reload Properties</button>
         </div>
@@ -432,13 +417,9 @@ app.get("/properties", (req, res) => {
           }
 
           async function saveProperty(listingId) {
-            const safeId = CSS.escape(listingId);
-
             const body = {
               shortId: getValue("shortId-" + listingId),
               active: getChecked("active-" + listingId),
-              sellingPoints: getValue("sellingPoints-" + listingId),
-              directBookingUrl: getValue("directBookingUrl-" + listingId),
               airbnbUrl: getValue("airbnbUrl-" + listingId),
               vrboUrl: getValue("vrboUrl-" + listingId),
               flyerImageUrl: getValue("flyerImageUrl-" + listingId),
@@ -456,7 +437,6 @@ app.get("/properties", (req, res) => {
             });
 
             const data = await response.json();
-
             const status = document.getElementById("saveStatus-" + listingId);
 
             if (data.ok) {
@@ -475,16 +455,16 @@ app.get("/properties", (req, res) => {
                   <img src="\${escapeHtml(property.picture || "")}" />
                   <div>
                     <h3>\${escapeHtml(property.title || "Untitled Property")}</h3>
-                    <div class="small">
-                      Listing ID: \${escapeHtml(property.listingId)}
-                    </div>
-                    <div class="small">
-                      City: \${escapeHtml(property.city || "")}
-                    </div>
+                    <div class="small">Listing ID: \${escapeHtml(property.listingId)}</div>
+                    <div class="small">City: \${escapeHtml(property.city || "")}</div>
                     <div class="small">
                       \${escapeHtml(property.bedrooms || "")} Bedrooms •
                       \${escapeHtml(property.bathrooms || "")} Bathrooms •
                       Sleeps \${escapeHtml(property.sleeps || "")}
+                    </div>
+                    <div class="small">
+                      Direct booking URL is automatic:
+                      https://oceanvacationsmb.guestybookings.com/properties/\${escapeHtml(property.listingId)}
                     </div>
                   </div>
                 </div>
@@ -568,17 +548,6 @@ app.get("/properties", (req, res) => {
                 <br />
 
                 <div>
-                  <label>Direct Booking URL</label>
-                  <input
-                    id="directBookingUrl-\${escapeHtml(id)}"
-                    value="\${escapeHtml(property.directBookingUrl || "")}"
-                    placeholder="https://oceanvacationsmb.guestybookings.com/properties/..."
-                  />
-                </div>
-
-                <br />
-
-                <div>
                   <label>Flyer Image URL from Cloudinary</label>
                   <input
                     id="flyerImageUrl-\${escapeHtml(id)}"
@@ -588,16 +557,6 @@ app.get("/properties", (req, res) => {
                   <div class="small">
                     This image URL will be added at the end of the generated post.
                   </div>
-                </div>
-
-                <br />
-
-                <div>
-                  <label>Selling Points</label>
-                  <textarea
-                    id="sellingPoints-\${escapeHtml(id)}"
-                    placeholder="Oceanfront, Private balcony, Beach access"
-                  >\${escapeHtml(property.sellingPoints || "")}</textarea>
                 </div>
 
                 <br />
@@ -644,7 +603,7 @@ app.get("/specials", (req, res) => {
         <div class="card">
           <h2>Generate Specials</h2>
           <p class="small">
-            This still scans Guesty for open gaps. The only change is that the saved Cloudinary flyer image URL is now added to the message.
+            This scans Guesty availability and creates the copy/paste post with Airbnb, VRBO, direct booking, and the saved flyer image URL.
           </p>
 
           <div class="grid-3">
@@ -699,12 +658,8 @@ app.get("/specials", (req, res) => {
             return \`
               <div class="card">
                 <h3>\${escapeHtml(post.propertyTitle)}</h3>
-                <div class="small">
-                  Property ID: \${escapeHtml(post.propertyId || "")}
-                </div>
-                <div class="small">
-                  Specials found: \${post.specials.length}
-                </div>
+                <div class="small">Property ID: \${escapeHtml(post.propertyId || "")}</div>
+                <div class="small">Specials found: \${post.specials.length}</div>
                 \${flyerLine}
 
                 <br />
@@ -763,5 +718,5 @@ app.get("/specials", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Ocean Specials server running on port ${PORT}`);
+  console.log(\`Ocean Specials server running on port \${PORT}\`);
 });
