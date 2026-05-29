@@ -237,8 +237,8 @@ function convertManagedProperty(property) {
     flyerImageUrl: property.flyerImageUrl || "",
 
     minNights: Number(property.minNights || 1),
-    maxNights: Number(property.maxNights || 30),
-    scanDays: Number(property.scanDays || 15),
+    maxNights: Math.max(Number(property.maxNights || 60), 60),
+    const scanDays = Number(options.days || 60);
 
     active: property.active !== false
   };
