@@ -342,7 +342,7 @@ export async function generateSpecials(selectedPropertyIds = [], options = {}) {
 
       propertyResults.push(result);
 
-      await sleep(1200);
+      await sleep(500);
     } catch (error) {
       propertyResults.push({
         property,
@@ -350,7 +350,7 @@ export async function generateSpecials(selectedPropertyIds = [], options = {}) {
         error: error.message
       });
 
-      await sleep(2500);
+      await sleep(500);
     }
   }
 
