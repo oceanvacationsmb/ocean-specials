@@ -236,8 +236,8 @@ function convertManagedProperty(property) {
     vrboUrl: property.vrboUrl,
     flyerImageUrl: property.flyerImageUrl || "",
 
-    minNights: Number(property.minNights || 1),
-    maxNights: Math.max(Number(property.maxNights || 60), 60),
+    minNights: 1,
+    maxNights: 60,
     scanDays: 60,
 
     active: property.active !== false
@@ -259,10 +259,10 @@ async function scanProperty(property, scanFromYmd, scanToYmd) {
     calendar;
 
   const gaps = findAvailableGaps(
-    calendarDays,
-    property.minNights,
-    property.maxNights
-  );
+  calendarDays,
+  1,
+  60
+);
 
   const specials = gaps.map((gap) => ({
     ...gap,
