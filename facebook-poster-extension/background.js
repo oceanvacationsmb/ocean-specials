@@ -13,20 +13,49 @@ function cleanGroups(groups) {
     .filter((url) => url.startsWith("https://www.facebook.com/groups/"));
 }
 
-function getGridPosition(index) {
-  const columns = 4;
-  const width = 470;
-  const height = 520;
-  const gap = 12;
+async function getScreenArea() {
+  try {
+    const displays = await chrome.system.display.getInfo();
+    const primary =
+      displays.find((display) => display.isPrimary) ||
+      displays[0];
+
+    if (primary?.workArea) {
+      return primary.workArea;
+    }
+  } catch (error) {
+    // fallback below
+  }
+
+  return {
+    left: 0,
+    top: 0,
+    width: 1366,
+    height: 768
+  };
+}
+
+async function getGridPosition(index, total) {
+  const area = await getScreenArea();
+
+  const gap = 8;
+  const columns = Math.min(4, Math.max(1, total));
+  const rows = Math.ceil(total / columns);
+
+  const availableWidth = area.width - gap * (columns + 1);
+  const availableHeight = area.height - gap * (rows + 1);
+
+  const width = Math.max(360, Math.floor(availableWidth / columns));
+  const height = Math.max(420, Math.floor(availableHeight / rows));
 
   const row = Math.floor(index / columns);
   const col = index % columns;
 
   return {
-    left: 20 + col * (width + gap),
-    top: 20 + row * (height + gap),
-    width,
-    height
+    left: Math.max(area.left, area.left + gap + col * (width + gap)),
+    top: Math.max(area.top, area.top + gap + row * (height + gap)),
+    width: Math.min(width, area.width),
+    height: Math.min(height, area.height)
   };
 }
 
@@ -45,10 +74,10 @@ async function sendFillMessage(tabId, message, attempt = 1) {
       filledTabIds.add(tabId);
     }
   } catch (error) {
-    if (attempt < 10 && !filledTabIds.has(tabId)) {
+    if (attempt < 8 && !filledTabIds.has(tabId)) {
       setTimeout(() => {
         sendFillMessage(tabId, message, attempt + 1);
-      }, 1200);
+      }, 1400);
     }
   }
 }
@@ -61,7 +90,7 @@ async function openPostingWindows(message, groups) {
 
   for (let i = 0; i < clean.length; i++) {
     const url = clean[i];
-    const pos = getGridPosition(i);
+    const pos = await getGridPosition(i, clean.length);
 
     const createdWindow = await chrome.windows.create({
       url,
@@ -103,7 +132,10 @@ async function closePostingWindows() {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request?.type === "START_FB_POSTING") {
-    openPostingWindows(request.payload?.message || "", request.payload?.groups || []);
+    openPostingWindows(
+      request.payload?.message || "",
+      request.payload?.groups || []
+    );
 
     sendResponse({
       ok: true
@@ -141,28 +173,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   return false;
-});
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== "complete") {
-    return;
-  }
-
-  if (!pendingPostsByTabId.has(tabId)) {
-    return;
-  }
-
-  if (filledTabIds.has(tabId)) {
-    return;
-  }
-
-  if (!tab.url || !tab.url.startsWith("https://www.facebook.com/groups/")) {
-    return;
-  }
-
-  const message = pendingPostsByTabId.get(tabId);
-
-  setTimeout(() => {
-    sendFillMessage(tabId, message);
-  }, 2500);
 });
