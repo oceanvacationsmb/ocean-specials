@@ -1,112 +1,158 @@
 import axios from "axios";
+import dotenv from "dotenv";
 
-let cachedToken = null;
-let tokenExpiresAt = 0;
+dotenv.config();
 
-const AUTH_URL = "https://booking.guesty.com/oauth2/token";
-const API_BASE = "https://booking.guesty.com/api";
+const GUESTY_BASE_URL = "https://open-api.guesty.com/v1";
+const GUESTY_TOKEN_URL = "https://open-api.guesty.com/oauth2/token";
 
-export async function getGuestyToken() {
-  const now = Date.now();
+let cachedAccessToken = null;
+let cachedTokenExpiresAt = 0;
+let tokenRequestInProgress = null;
 
-  if (cachedToken && now < tokenExpiresAt) {
-    return cachedToken;
-  }
-
+function getGuestyCredentials() {
   const clientId = process.env.GUESTY_CLIENT_ID;
   const clientSecret = process.env.GUESTY_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error("Missing Guesty Client ID or Client Secret");
+    throw new Error("Missing GUESTY_CLIENT_ID or GUESTY_CLIENT_SECRET in Render environment variables");
   }
 
-  const body = new URLSearchParams();
-  body.append("grant_type", "client_credentials");
-  body.append("scope", "booking_engine:api");
-  body.append("client_id", clientId);
-  body.append("client_secret", clientSecret);
-
-  const response = await axios.post(AUTH_URL, body, {
-    headers: {
-      accept: "application/json",
-      "content-type": "application/x-www-form-urlencoded"
-    }
-  });
-
-  cachedToken = response.data.access_token;
-
-  const expiresInSeconds = response.data.expires_in || 86400;
-  tokenExpiresAt = now + (expiresInSeconds - 600) * 1000;
-
-  return cachedToken;
-}
-
-export async function testGuestyConnection() {
-  const token = await getGuestyToken();
-
   return {
-    ok: true,
-    message: "Guesty token received",
-    tokenPreview: token.slice(0, 8) + "..."
+    clientId,
+    clientSecret
   };
 }
 
-export async function getListingCalendar(listingId, from, to) {
-  const token = await getGuestyToken();
+function isTokenStillValid() {
+  if (!cachedAccessToken) {
+    return false;
+  }
 
-  const response = await axios.get(`${API_BASE}/listings/${listingId}/calendar`, {
-    params: {
-      from,
-      to
-    },
-    headers: {
-      accept: "application/json",
-      Authorization: `Bearer ${token}`
-    }
-  });
+  const now = Date.now();
 
-  return response.data;
+  return now < cachedTokenExpiresAt;
 }
 
-export async function createReservationQuote({
-  listingId,
-  checkInDateLocalized,
-  checkOutDateLocalized,
-  guestsCount
-}) {
-  const token = await getGuestyToken();
+async function requestNewAccessToken() {
+  const { clientId, clientSecret } = getGuestyCredentials();
 
-  const response = await axios.post(
-    `${API_BASE}/reservations/quotes`,
-    {
-      listingId,
-      checkInDateLocalized,
-      checkOutDateLocalized,
-      guestsCount
+  const body = new URLSearchParams();
+  body.set("grant_type", "client_credentials");
+  body.set("scope", "open-api");
+
+  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  const response = await axios.post(GUESTY_TOKEN_URL, body.toString(), {
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/x-www-form-urlencoded"
     },
-    {
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-        Authorization: `Bearer ${token}`
-      }
-    }
+    timeout: 30000
+  });
+
+  const accessToken = response.data?.access_token;
+  const expiresInSeconds = Number(response.data?.expires_in || 86400);
+
+  if (!accessToken) {
+    throw new Error("Guesty token response did not include access_token");
+  }
+
+  cachedAccessToken = accessToken;
+
+  const safetyBufferMs = 10 * 60 * 1000;
+  cachedTokenExpiresAt = Date.now() + expiresInSeconds * 1000 - safetyBufferMs;
+
+  console.log(
+    `Guesty token refreshed. Expires in ${expiresInSeconds} seconds.`
   );
 
-  return response.data;
+  return cachedAccessToken;
+}
+
+async function getAccessToken() {
+  if (isTokenStillValid()) {
+    return cachedAccessToken;
+  }
+
+  if (!tokenRequestInProgress) {
+    tokenRequestInProgress = requestNewAccessToken()
+      .finally(() => {
+        tokenRequestInProgress = null;
+      });
+  }
+
+  return tokenRequestInProgress;
+}
+
+async function guestyRequest(config, retryAfterUnauthorized = true) {
+  const token = await getAccessToken();
+
+  try {
+    const response = await axios({
+      baseURL: GUESTY_BASE_URL,
+      timeout: 45000,
+      ...config,
+      headers: {
+        ...(config.headers || {}),
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    const status = error.response?.status;
+
+    if (status === 401 && retryAfterUnauthorized) {
+      cachedAccessToken = null;
+      cachedTokenExpiresAt = 0;
+
+      const freshToken = await getAccessToken();
+
+      const response = await axios({
+        baseURL: GUESTY_BASE_URL,
+        timeout: 45000,
+        ...config,
+        headers: {
+          ...(config.headers || {}),
+          Authorization: `Bearer ${freshToken}`
+        }
+      });
+
+      return response.data;
+    }
+
+    throw error;
+  }
+}
+
+export async function testGuestyConnection() {
+  return guestyRequest({
+    method: "GET",
+    url: "/listings",
+    params: {
+      limit: 1
+    }
+  });
 }
 
 export async function getAllListings() {
-  const token = await getGuestyToken();
-
-  const response = await axios.get(`${API_BASE}/listings`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
+  return guestyRequest({
+    method: "GET",
+    url: "/listings",
     params: {
       limit: 100
     }
   });
+}
 
-  return response.data;
+export async function getListingCalendar(listingId, startDate, endDate) {
+  return guestyRequest({
+    method: "GET",
+    url: `/availability-pricing/api/calendar/listings/${listingId}`,
+    params: {
+      startDate,
+      endDate
+    }
+  });
 }
