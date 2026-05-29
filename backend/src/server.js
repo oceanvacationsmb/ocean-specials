@@ -602,28 +602,31 @@ app.get("/specials", (req, res) => {
         <div class="card">
           <h2>Generate Specials</h2>
           <p class="small">
-            Scan starts 2 days from today. Choose 15 days or 30 days only.
+            Specials scan automatically when this page opens. Default is 15 days starting 2 days from today.
           </p>
 
-          <div class="grid">
-            <div>
-              <label>Scan Filter</label>
-              <select id="scanDays">
-                <option value="15">15 days</option>
-                <option value="30">30 days</option>
-              </select>
+          <details>
+            <summary style="font-weight:800; cursor:pointer;">Period</summary>
+
+            <br />
+
+            <div class="grid">
+              <div>
+                <label>Scan Filter</label>
+                <select id="scanDays" onchange="generateSpecials()">
+                  <option value="15">15 days</option>
+                  <option value="30">30 days</option>
+                </select>
+              </div>
             </div>
-          </div>
+          </details>
+        </div>
+
+        <details class="card">
+          <summary style="font-weight:800; cursor:pointer;">Facebook Groups Dashboard</summary>
 
           <br />
 
-          <div class="row">
-            <button onclick="generateSpecials()">Generate Specials</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Facebook Groups Dashboard</h2>
           <p class="small">
             Add, delete, or edit group links here. One group link per line. Saved on the server.
           </p>
@@ -641,15 +644,7 @@ app.get("/specials", (req, res) => {
             <button onclick="saveFacebookGroups()">Save Facebook Groups</button>
             <span id="facebookGroupsStatus"></span>
           </div>
-        </div>
-
-        <div class="card">
-          <h2>Facebook Group Links</h2>
-          <p class="small">
-            After generating the message, copy the message, then open these group links and paste.
-          </p>
-          <div id="facebookGroupLinks"></div>
-        </div>
+        </details>
 
         <div id="status"></div>
         <div id="results"></div>
@@ -673,20 +668,6 @@ app.get("/specials", (req, res) => {
               .filter(Boolean);
           }
 
-          function renderFacebookGroupLinks() {
-            const container = document.getElementById("facebookGroupLinks");
-            const groups = getCleanFacebookGroups();
-
-            if (!groups.length) {
-              container.innerHTML = '<div class="small">No Facebook groups saved.</div>';
-              return;
-            }
-
-            container.innerHTML = groups.map((url, index) => {
-              return '<a class="group-link-button" href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">Open Group ' + (index + 1) + '</a>';
-            }).join("");
-          }
-
           async function loadFacebookGroups() {
             const box = document.getElementById("facebookGroups");
             const status = document.getElementById("facebookGroupsStatus");
@@ -703,8 +684,6 @@ app.get("/specials", (req, res) => {
 
             SERVER_FACEBOOK_GROUPS = data.groups || "";
             box.value = SERVER_FACEBOOK_GROUPS;
-
-            renderFacebookGroupLinks();
 
             status.innerHTML = '<span class="success">Loaded</span>';
           }
@@ -737,23 +716,47 @@ app.get("/specials", (req, res) => {
             SERVER_FACEBOOK_GROUPS = data.groups || "";
             box.value = SERVER_FACEBOOK_GROUPS;
 
-            renderFacebookGroupLinks();
-
             status.innerHTML = '<span class="success">Saved</span>';
-          }
-
-          function buildCopyMessage(message) {
-            return message;
           }
 
           async function copyText(id) {
             const el = document.getElementById(id);
-            const fullMessage = buildCopyMessage(el.value);
 
-            await navigator.clipboard.writeText(fullMessage);
+            await navigator.clipboard.writeText(el.value);
 
             const status = document.getElementById("copy-" + id);
             status.innerHTML = '<span class="success">Copied</span>';
+          }
+
+          function startFacebookPosting(id) {
+            const el = document.getElementById(id);
+            const message = el.value || "";
+            const groups = getCleanFacebookGroups();
+
+            if (!message.trim()) {
+              alert("Message is empty.");
+              return;
+            }
+
+            if (!groups.length) {
+              alert("No Facebook groups saved.");
+              return;
+            }
+
+            window.postMessage(
+              {
+                source: "OCEAN_SPECIALS_APP",
+                type: "START_FB_POSTING",
+                payload: {
+                  message,
+                  groups
+                }
+              },
+              "*"
+            );
+
+            const status = document.getElementById("posting-" + id);
+            status.innerHTML = '<span class="success">Opening Facebook posting windows...</span>';
           }
 
           function renderPost(post, index) {
@@ -773,8 +776,10 @@ app.get("/specials", (req, res) => {
               + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(post.message) + '</textarea>'
               + '  <br /><br />'
               + '  <div class="row">'
+              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Start Posting</button>'
               + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
               + '    <span id="copy-' + textareaId + '"></span>'
+              + '    <span id="posting-' + textareaId + '"></span>'
               + '  </div>'
               + '</div>';
           }
@@ -790,8 +795,6 @@ app.get("/specials", (req, res) => {
 
             status.innerHTML = '<div class="card">Scanning Guesty availability...</div>';
             results.innerHTML = "";
-
-            renderFacebookGroupLinks();
 
             const response = await fetch("/api/specials/generate?" + params.toString());
             const data = await response.json();
@@ -811,7 +814,12 @@ app.get("/specials", (req, res) => {
             results.innerHTML = data.propertyPosts.map(renderPost).join("");
           }
 
-          loadFacebookGroups();
+          async function startPage() {
+            await loadFacebookGroups();
+            await generateSpecials();
+          }
+
+          startPage();
         </script>
       `
     )
