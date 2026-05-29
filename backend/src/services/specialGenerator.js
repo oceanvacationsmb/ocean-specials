@@ -507,13 +507,25 @@ export async function generateSpecials() {
     }));
 
   return {
-    ok: true,
-    scanFrom,
-    scanTo,
-    scanDays: 60,
-    totalProperties: managedProperties.length,
-    foundProperties: propertyPosts.length,
-    propertyPosts,
-    results: propertyResults
-  };
+  ok: true,
+
+  scanFrom,
+  scanTo,
+
+  range: {
+    from: scanFrom,
+    to: scanTo
+  },
+
+  scanRange: {
+    from: scanFrom,
+    to: scanTo
+  },
+
+  scanDays: 60,
+  totalProperties: managedProperties.length,
+  foundProperties: propertyPosts.length,
+  propertyPosts,
+  results: propertyResults
+};
 }
