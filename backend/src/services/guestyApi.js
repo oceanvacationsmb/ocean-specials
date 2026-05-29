@@ -128,7 +128,7 @@ async function guestyRequest(config, options = {}) {
       }
 
       if (status === 429) {
-  throw new Error("Guesty rate limit 429. Skipped this property.");
+  throw error;
 }
 
       throw error;
