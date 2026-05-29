@@ -107,20 +107,53 @@ function choosePostLinks(property, specials) {
   return buildGenericLinks(property);
 }
 
-function getOpenRange(specials) {
+function formatGapLine(gap) {
+  const nightText = gap.nights === 1 ? "1 night" : `${gap.nights} nights`;
+
+  return `• ${gap.checkInNice} to ${gap.checkOutNice} (${nightText})`;
+}
+
+function buildGapSections(specials) {
   const sorted = [...specials].sort((a, b) =>
     a.checkIn.localeCompare(b.checkIn)
   );
 
-  if (!sorted.length) {
-    return "Contact us for dates";
+  const oneNight = sorted.filter((gap) => gap.nights === 1);
+  const twoNights = sorted.filter((gap) => gap.nights === 2);
+  const threeToSix = sorted.filter((gap) => gap.nights >= 3 && gap.nights <= 6);
+  const sevenPlus = sorted.filter((gap) => gap.nights >= 7);
+
+  const sections = [];
+
+  if (oneNight.length) {
+    sections.push(
+      `1 night openings:\n${oneNight.map(formatGapLine).join("\n")}`
+    );
   }
 
-  if (sorted.length === 1) {
-    return `${sorted[0].checkInNice} to ${sorted[0].checkOutNice}`;
+  if (twoNights.length) {
+    sections.push(
+      `2 night openings:\n${twoNights.map(formatGapLine).join("\n")}`
+    );
   }
 
-  return `${sorted[0].checkInNice} to ${sorted[sorted.length - 1].checkOutNice}`;
+  if (threeToSix.length) {
+    sections.push(
+      `3 to 6 night openings:\n${threeToSix.map(formatGapLine).join("\n")}`
+    );
+  }
+
+  if (sevenPlus.length) {
+    sections.push(
+      `7+ night openings:\n${sevenPlus.map(formatGapLine).join("\n")}`
+    );
+  }
+
+  if (!sections.length) {
+    return "Contact us for open dates.";
+  }
+
+  return sections.join("\n\n");
 }
 
 function buildLinksSection(postLinks, flyerImageUrl) {
@@ -153,14 +186,14 @@ function createPropertyPost(property, specials) {
     a.checkIn.localeCompare(b.checkIn)
   );
 
-  const openRange = getOpenRange(sortedSpecials);
   const facts = buildFactsLine(property);
+  const gapSections = buildGapSections(sortedSpecials);
   const postLinks = choosePostLinks(property, sortedSpecials);
   const linksSection = buildLinksSection(postLinks, property.flyerImageUrl);
 
   const message = `LAST MINUTE DEALS IN "${property.location}"
 
-Open availability between ${openRange}
+${gapSections}
 
 ${facts}
 
