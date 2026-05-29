@@ -1,3 +1,5 @@
+let oceanAlreadyFilled = false;
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -39,8 +41,7 @@ function findComposerButton() {
     "create a public post",
     "create public post",
     "create post",
-    "what's on your mind",
-    "post anonymously"
+    "what's on your mind"
   ];
 
   const selectors = [
@@ -116,70 +117,62 @@ async function clickElement(el) {
 
   await sleep(700);
 
-  el.click();
-
-  el.dispatchEvent(
-    new MouseEvent("mousedown", {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    })
-  );
-
-  el.dispatchEvent(
-    new MouseEvent("mouseup", {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    })
-  );
-
-  el.dispatchEvent(
-    new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    })
-  );
+  el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+  el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+  el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
 
   return true;
 }
 
-function insertTextIntoEditable(el, text) {
+function clearEditable(el) {
   el.focus();
 
   const selection = window.getSelection();
   const range = document.createRange();
 
   range.selectNodeContents(el);
-  range.collapse(false);
 
   selection.removeAllRanges();
   selection.addRange(range);
 
-  let success = false;
+  document.execCommand("delete", false, null);
 
-  try {
-    success = document.execCommand("insertText", false, text);
-  } catch (error) {
-    success = false;
+  el.dispatchEvent(new InputEvent("input", {
+    bubbles: true,
+    cancelable: true,
+    inputType: "deleteContentBackward"
+  }));
+}
+
+function pasteTextIntoEditable(el, text) {
+  el.focus();
+  clearEditable(el);
+
+  const cleanMessage = String(text || "").replace(/\r\n/g, "\n").trim();
+
+  const dataTransfer = new DataTransfer();
+  dataTransfer.setData("text/plain", cleanMessage);
+
+  const pasteEvent = new ClipboardEvent("paste", {
+    bubbles: true,
+    cancelable: true,
+    clipboardData: dataTransfer
+  });
+
+  const pasteAccepted = el.dispatchEvent(pasteEvent);
+
+  if (pasteAccepted) {
+    document.execCommand("insertText", false, cleanMessage);
   }
 
-  if (!success) {
-    el.textContent = text;
-  }
-
-  el.dispatchEvent(
-    new InputEvent("input", {
-      bubbles: true,
-      cancelable: true,
-      inputType: "insertText",
-      data: text
-    })
-  );
+  el.dispatchEvent(new InputEvent("input", {
+    bubbles: true,
+    cancelable: true,
+    inputType: "insertText",
+    data: cleanMessage
+  }));
 
   el.dispatchEvent(new Event("change", { bubbles: true }));
-  el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
 }
 
 function showOceanStatus(message, isError = false) {
@@ -241,6 +234,12 @@ async function openComposerWithRetries() {
 }
 
 async function fillFacebookPost(message) {
+  if (oceanAlreadyFilled) {
+    return;
+  }
+
+  oceanAlreadyFilled = true;
+
   showOceanStatus("Ocean Specials: preparing Facebook post...");
 
   window.scrollTo({
@@ -253,11 +252,12 @@ async function fillFacebookPost(message) {
   const editable = await openComposerWithRetries();
 
   if (!editable) {
-    showOceanStatus("Ocean Specials: could not find Facebook post box. Click Write something, then click extension reload.", true);
+    oceanAlreadyFilled = false;
+    showOceanStatus("Ocean Specials: could not find Facebook post box.", true);
     return;
   }
 
-  insertTextIntoEditable(editable, message);
+  pasteTextIntoEditable(editable, message);
 
   await sleep(600);
 
