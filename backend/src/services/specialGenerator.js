@@ -2,6 +2,10 @@ import { getListingCalendar } from "./guestyApi.js";
 import { findAvailableGaps } from "./gapFinder.js";
 import { getManagedProperties } from "./propertyManager.js";
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function addDays(date, days) {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + days);
@@ -244,8 +248,34 @@ function convertManagedProperty(property) {
   };
 }
 
+async function getListingCalendarWithRetry(listingId, scanFromYmd, scanToYmd) {
+  const maxAttempts = 4;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await getListingCalendar(listingId, scanFromYmd, scanToYmd);
+    } catch (error) {
+      const status = error.response?.status;
+
+      if (status !== 429 || attempt === maxAttempts) {
+        throw error;
+      }
+
+      const waitMs = attempt * 3500;
+
+      console.log(
+        `Guesty rate limit for ${listingId}. Retry ${attempt}/${maxAttempts} in ${waitMs}ms`
+      );
+
+      await sleep(waitMs);
+    }
+  }
+
+  throw new Error("Calendar retry failed");
+}
+
 async function scanProperty(property, scanFromYmd, scanToYmd) {
-  const calendar = await getListingCalendar(
+  const calendar = await getListingCalendarWithRetry(
     property.listingId,
     scanFromYmd,
     scanToYmd
@@ -259,10 +289,10 @@ async function scanProperty(property, scanFromYmd, scanToYmd) {
     calendar;
 
   const gaps = findAvailableGaps(
-  calendarDays,
-  1,
-  60
-);
+    calendarDays,
+    1,
+    60
+  );
 
   const specials = gaps.map((gap) => ({
     ...gap,
@@ -305,18 +335,24 @@ export async function generateSpecials(selectedPropertyIds = [], options = {}) {
   const propertyResults = [];
 
   for (const property of properties) {
-  try {
-    const result = await scanProperty(property, scanFromYmd, scanToYmd);
+    try {
+      console.log(`Scanning ${property.propertyId} ${property.listingId}`);
 
-    propertyResults.push(result);
-  } catch (error) {
-    propertyResults.push({
-      property,
-      specials: [],
-      error: error.message
-    });
+      const result = await scanProperty(property, scanFromYmd, scanToYmd);
+
+      propertyResults.push(result);
+
+      await sleep(1200);
+    } catch (error) {
+      propertyResults.push({
+        property,
+        specials: [],
+        error: error.message
+      });
+
+      await sleep(2500);
+    }
   }
-}
 
   const propertyPosts = propertyResults
     .filter((result) => result.specials.length)
