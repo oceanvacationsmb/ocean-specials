@@ -284,12 +284,12 @@ async function scanProperty(property, scanFromYmd, scanToYmd) {
 
 export async function generateSpecials(selectedPropertyIds = [], options = {}) {
   const today = new Date();
-  const scanFromYmd = options.from || toYmd(today);
 
-  const defaultScanDays = Number(options.days || 15);
-  const scanToYmd =
-    options.to ||
-    toYmd(addDays(new Date(scanFromYmd + "T00:00:00"), defaultScanDays));
+  const scanDays = Number(options.days || 15);
+
+  const startDate = addDays(today, 2);
+  const scanFromYmd = toYmd(startDate);
+  const scanToYmd = toYmd(addDays(startDate, scanDays));
 
   const managedProperties = await getManagedProperties();
 
@@ -333,7 +333,8 @@ export async function generateSpecials(selectedPropertyIds = [], options = {}) {
     ok: true,
     scan: {
       from: scanFromYmd,
-      to: scanToYmd
+      to: scanToYmd,
+      days: scanDays
     },
     count: propertyPosts.length,
     propertyPosts,
