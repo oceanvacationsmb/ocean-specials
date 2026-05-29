@@ -30,11 +30,6 @@ function textIncludes(el, texts) {
   return texts.some((text) => value.includes(text));
 }
 
-function getAllVisibleElements() {
-  return Array.from(document.querySelectorAll("div, span, button, a"))
-    .filter(isVisible);
-}
-
 function findComposerButton() {
   const searchTexts = [
     "write something",
@@ -49,7 +44,9 @@ function findComposerButton() {
     '[aria-label*="Create a public post"]',
     '[aria-label*="Create public post"]',
     '[aria-label*="Create post"]',
-    '[role="button"]'
+    '[role="button"]',
+    "span",
+    "div"
   ];
 
   for (const selector of selectors) {
@@ -65,14 +62,6 @@ function findComposerButton() {
       if (textIncludes(el, searchTexts)) {
         return el;
       }
-    }
-  }
-
-  const elements = getAllVisibleElements();
-
-  for (const el of elements) {
-    if (textIncludes(el, searchTexts)) {
-      return el;
     }
   }
 
@@ -135,44 +124,52 @@ function clearEditable(el) {
   selection.removeAllRanges();
   selection.addRange(range);
 
-  document.execCommand("delete", false, null);
+  try {
+    document.execCommand("delete", false, null);
+  } catch (error) {
+    el.textContent = "";
+  }
 
-  el.dispatchEvent(new InputEvent("input", {
-    bubbles: true,
-    cancelable: true,
-    inputType: "deleteContentBackward"
-  }));
+  el.dispatchEvent(
+    new InputEvent("input", {
+      bubbles: true,
+      cancelable: true,
+      inputType: "deleteContentBackward"
+    })
+  );
 }
 
-function pasteTextIntoEditable(el, text) {
+function insertMessageOnce(el, message) {
+  const cleanMessage = String(message || "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
   el.focus();
   clearEditable(el);
 
-  const cleanMessage = String(text || "").replace(/\r\n/g, "\n").trim();
+  let inserted = false;
 
-  const dataTransfer = new DataTransfer();
-  dataTransfer.setData("text/plain", cleanMessage);
-
-  const pasteEvent = new ClipboardEvent("paste", {
-    bubbles: true,
-    cancelable: true,
-    clipboardData: dataTransfer
-  });
-
-  const pasteAccepted = el.dispatchEvent(pasteEvent);
-
-  if (pasteAccepted) {
-    document.execCommand("insertText", false, cleanMessage);
+  try {
+    inserted = document.execCommand("insertText", false, cleanMessage);
+  } catch (error) {
+    inserted = false;
   }
 
-  el.dispatchEvent(new InputEvent("input", {
-    bubbles: true,
-    cancelable: true,
-    inputType: "insertText",
-    data: cleanMessage
-  }));
+  if (!inserted) {
+    el.innerText = cleanMessage;
+  }
+
+  el.dispatchEvent(
+    new InputEvent("input", {
+      bubbles: true,
+      cancelable: true,
+      inputType: "insertText",
+      data: cleanMessage
+    })
+  );
 
   el.dispatchEvent(new Event("change", { bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
 }
 
 function showOceanStatus(message, isError = false) {
@@ -235,7 +232,7 @@ async function openComposerWithRetries() {
 
 async function fillFacebookPost(message) {
   if (oceanAlreadyFilled) {
-    return;
+    return true;
   }
 
   oceanAlreadyFilled = true;
@@ -254,22 +251,24 @@ async function fillFacebookPost(message) {
   if (!editable) {
     oceanAlreadyFilled = false;
     showOceanStatus("Ocean Specials: could not find Facebook post box.", true);
-    return;
+    return false;
   }
 
-  pasteTextIntoEditable(editable, message);
+  insertMessageOnce(editable, message);
 
   await sleep(600);
 
   showOceanStatus("Ocean Specials: message filled. Review and click Post.");
+
+  return true;
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request?.type === "FILL_FACEBOOK_POST") {
-    fillFacebookPost(request.message || "");
-
-    sendResponse({
-      ok: true
+    fillFacebookPost(request.message || "").then((ok) => {
+      sendResponse({
+        ok
+      });
     });
 
     return true;
