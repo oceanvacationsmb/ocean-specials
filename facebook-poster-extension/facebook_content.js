@@ -6,44 +6,56 @@ function isVisible(el) {
   if (!el) return false;
 
   const rect = el.getBoundingClientRect();
+  const style = window.getComputedStyle(el);
 
-  return rect.width > 0 && rect.height > 0;
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    style.visibility !== "hidden" &&
+    style.display !== "none"
+  );
+}
+
+function cleanText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function textIncludes(el, texts) {
-  const value = String(el.innerText || el.textContent || "")
-    .toLowerCase()
-    .trim();
-
+  const value = cleanText(el.innerText || el.textContent || "");
   return texts.some((text) => value.includes(text));
 }
 
-function findClickableComposer() {
+function getAllVisibleElements() {
+  return Array.from(document.querySelectorAll("div, span, button, a"))
+    .filter(isVisible);
+}
+
+function findComposerButton() {
   const searchTexts = [
     "write something",
-    "what's on your mind",
+    "create a public post",
     "create public post",
-    "create post"
+    "create post",
+    "what's on your mind",
+    "post anonymously"
   ];
 
   const selectors = [
     '[aria-label*="Write something"]',
+    '[aria-label*="Create a public post"]',
     '[aria-label*="Create public post"]',
     '[aria-label*="Create post"]',
-    'div[role="button"]',
-    'span',
-    'div'
+    '[role="button"]'
   ];
 
   for (const selector of selectors) {
-    const elements = Array.from(document.querySelectorAll(selector));
+    const elements = Array.from(document.querySelectorAll(selector)).filter(isVisible);
 
     for (const el of elements) {
-      if (!isVisible(el)) {
-        continue;
-      }
-
-      const aria = String(el.getAttribute("aria-label") || "").toLowerCase();
+      const aria = cleanText(el.getAttribute("aria-label"));
 
       if (searchTexts.some((text) => aria.includes(text))) {
         return el;
@@ -52,6 +64,14 @@ function findClickableComposer() {
       if (textIncludes(el, searchTexts)) {
         return el;
       }
+    }
+  }
+
+  const elements = getAllVisibleElements();
+
+  for (const el of elements) {
+    if (textIncludes(el, searchTexts)) {
+      return el;
     }
   }
 
@@ -67,6 +87,14 @@ function findEditableBox() {
     return dialogBoxes[dialogBoxes.length - 1];
   }
 
+  const textboxes = Array.from(
+    document.querySelectorAll('[role="textbox"][contenteditable="true"]')
+  ).filter(isVisible);
+
+  if (textboxes.length) {
+    return textboxes[textboxes.length - 1];
+  }
+
   const boxes = Array.from(
     document.querySelectorAll('div[contenteditable="true"]')
   ).filter(isVisible);
@@ -76,6 +104,45 @@ function findEditableBox() {
   }
 
   return null;
+}
+
+async function clickElement(el) {
+  if (!el) return false;
+
+  el.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+
+  await sleep(700);
+
+  el.click();
+
+  el.dispatchEvent(
+    new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    })
+  );
+
+  el.dispatchEvent(
+    new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    })
+  );
+
+  el.dispatchEvent(
+    new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    })
+  );
+
+  return true;
 }
 
 function insertTextIntoEditable(el, text) {
@@ -90,7 +157,13 @@ function insertTextIntoEditable(el, text) {
   selection.removeAllRanges();
   selection.addRange(range);
 
-  const success = document.execCommand("insertText", false, text);
+  let success = false;
+
+  try {
+    success = document.execCommand("insertText", false, text);
+  } catch (error) {
+    success = false;
+  }
 
   if (!success) {
     el.textContent = text;
@@ -99,12 +172,14 @@ function insertTextIntoEditable(el, text) {
   el.dispatchEvent(
     new InputEvent("input", {
       bubbles: true,
+      cancelable: true,
       inputType: "insertText",
       data: text
     })
   );
 
   el.dispatchEvent(new Event("change", { bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
 }
 
 function showOceanStatus(message, isError = false) {
@@ -123,6 +198,7 @@ function showOceanStatus(message, isError = false) {
     box.style.fontSize = "14px";
     box.style.fontWeight = "700";
     box.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
+    box.style.maxWidth = "420px";
     document.body.appendChild(box);
   }
 
@@ -131,36 +207,59 @@ function showOceanStatus(message, isError = false) {
   box.textContent = message;
 }
 
+async function openComposerWithRetries() {
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    const existingBox = findEditableBox();
+
+    if (existingBox) {
+      return existingBox;
+    }
+
+    const composerButton = findComposerButton();
+
+    if (composerButton) {
+      showOceanStatus("Ocean Specials: opening post box...");
+      await clickElement(composerButton);
+      await sleep(1800);
+
+      const editable = findEditableBox();
+
+      if (editable) {
+        return editable;
+      }
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+
+    await sleep(1200);
+  }
+
+  return null;
+}
+
 async function fillFacebookPost(message) {
-  showOceanStatus("Ocean Specials: opening post box...");
+  showOceanStatus("Ocean Specials: preparing Facebook post...");
 
   window.scrollTo({
     top: 0,
     behavior: "smooth"
   });
 
-  await sleep(1200);
+  await sleep(1600);
 
-  const composerButton = findClickableComposer();
-
-  if (composerButton) {
-    composerButton.click();
-    await sleep(2000);
-  }
-
-  let editable = findEditableBox();
+  const editable = await openComposerWithRetries();
 
   if (!editable) {
-    await sleep(2000);
-    editable = findEditableBox();
-  }
-
-  if (!editable) {
-    showOceanStatus("Ocean Specials: could not find Facebook post box", true);
+    showOceanStatus("Ocean Specials: could not find Facebook post box. Click Write something, then click extension reload.", true);
     return;
   }
 
   insertTextIntoEditable(editable, message);
+
+  await sleep(600);
 
   showOceanStatus("Ocean Specials: message filled. Review and click Post.");
 }
@@ -179,6 +278,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return false;
 });
 
-chrome.runtime.sendMessage({
-  type: "FB_CONTENT_READY"
-});
+setTimeout(() => {
+  chrome.runtime.sendMessage({
+    type: "FB_CONTENT_READY"
+  });
+}, 1000);
