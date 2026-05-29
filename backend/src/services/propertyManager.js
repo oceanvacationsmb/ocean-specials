@@ -50,12 +50,18 @@ function getPictures(listing) {
   const urls = [];
 
   const main = getPicture(listing);
-  if (main) urls.push(main);
+
+  if (main) {
+    urls.push(main);
+  }
 
   if (Array.isArray(listing.pictures)) {
     for (const picture of listing.pictures) {
       const url = getPictureFromValue(picture);
-      if (url) urls.push(url);
+
+      if (url) {
+        urls.push(url);
+      }
     }
   }
 
@@ -67,7 +73,7 @@ function getCity(listing) {
     listing.address?.city ||
     listing.location?.city ||
     listing.city ||
-    ""
+    "North Myrtle Beach"
   );
 }
 
@@ -92,7 +98,9 @@ function getBathrooms(listing) {
 }
 
 function getSleeps(listing) {
-  if (typeof listing.accommodates === "number") return listing.accommodates;
+  if (typeof listing.accommodates === "number") {
+    return listing.accommodates;
+  }
 
   return (
     listing.guests ||
@@ -141,8 +149,6 @@ async function getSavedSettingsFromDatabase() {
       listing_id,
       short_id,
       active,
-      selling_points,
-      direct_booking_url,
       airbnb_url,
       vrbo_url,
       flyer_image_url,
@@ -158,8 +164,6 @@ async function getSavedSettingsFromDatabase() {
     settings[row.listing_id] = {
       shortId: row.short_id || "",
       active: row.active !== false,
-      sellingPoints: row.selling_points || "",
-      directBookingUrl: row.direct_booking_url || "",
       airbnbUrl: row.airbnb_url || "",
       vrboUrl: row.vrbo_url || "",
       flyerImageUrl: row.flyer_image_url || "",
@@ -206,8 +210,6 @@ export async function getManagedProperties() {
 
       active: saved.active !== false,
 
-      sellingPoints: saved.sellingPoints || "",
-      directBookingUrl: saved.directBookingUrl || "",
       airbnbUrl: saved.airbnbUrl || "",
       vrboUrl: saved.vrboUrl || "",
       flyerImageUrl: saved.flyerImageUrl || "",
@@ -223,8 +225,6 @@ export async function saveManagedProperty(listingId, data) {
   const savedData = {
     shortId: data.shortId || "",
     active: data.active !== false,
-    sellingPoints: data.sellingPoints || "",
-    directBookingUrl: data.directBookingUrl || "",
     airbnbUrl: data.airbnbUrl || "",
     vrboUrl: data.vrboUrl || "",
     flyerImageUrl: data.flyerImageUrl || "",
@@ -242,8 +242,6 @@ export async function saveManagedProperty(listingId, data) {
           listing_id,
           short_id,
           active,
-          selling_points,
-          direct_booking_url,
           airbnb_url,
           vrbo_url,
           flyer_image_url,
@@ -252,13 +250,11 @@ export async function saveManagedProperty(listingId, data) {
           scan_days,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
         ON CONFLICT (listing_id)
         DO UPDATE SET
           short_id = EXCLUDED.short_id,
           active = EXCLUDED.active,
-          selling_points = EXCLUDED.selling_points,
-          direct_booking_url = EXCLUDED.direct_booking_url,
           airbnb_url = EXCLUDED.airbnb_url,
           vrbo_url = EXCLUDED.vrbo_url,
           flyer_image_url = EXCLUDED.flyer_image_url,
@@ -271,8 +267,6 @@ export async function saveManagedProperty(listingId, data) {
         listingId,
         savedData.shortId,
         savedData.active,
-        savedData.sellingPoints,
-        savedData.directBookingUrl,
         savedData.airbnbUrl,
         savedData.vrboUrl,
         savedData.flyerImageUrl,
