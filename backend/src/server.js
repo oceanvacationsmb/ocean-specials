@@ -685,17 +685,14 @@ app.get("/specials", (req, res) => {
           }
 
           function buildCopyMessage(message) {
-            const groups = SERVER_FACEBOOK_GROUPS.trim();
+  const groups = SERVER_FACEBOOK_GROUPS.trim();
 
-            if (!groups) {
-              return message;
-            }
+  if (!groups) {
+    return message;
+  }
 
-            return "FACEBOOK GROUPS:\\n\\n"
-              + groups
-              + "\\n\\nPOST MESSAGE:\\n\\n"
-              + message;
-          }
+  return groups + "\\n\\n" + message;
+}
 
           async function copyText(id) {
             const el = document.getElementById(id);
