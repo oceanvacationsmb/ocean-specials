@@ -14,6 +14,10 @@ import {
 } from "./services/propertyManager.js";
 
 import { generateSpecials } from "./services/specialGenerator.js";
+import {
+  getAppSetting,
+  setAppSetting
+} from "./services/db.js";
 
 dotenv.config();
 
@@ -340,6 +344,40 @@ app.post("/api/properties/:listingId", async (req, res) => {
   }
 });
 
+app.get("/api/facebook-groups", async (req, res) => {
+  try {
+    const groups = await getAppSetting("facebook_groups", "");
+
+    res.json({
+      ok: true,
+      groups
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+app.put("/api/facebook-groups", async (req, res) => {
+  try {
+    const groups = req.body?.groups || "";
+
+    await setAppSetting("facebook_groups", groups);
+
+    res.json({
+      ok: true,
+      groups
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
 app.get("/api/specials/generate", async (req, res) => {
   try {
     const result = await generateSpecials([], getScanOptions(req));
@@ -559,10 +597,33 @@ app.get("/specials", (req, res) => {
           </div>
         </div>
 
+        <div class="card">
+          <h2>Facebook Groups</h2>
+          <p class="small">
+            Add, remove, or edit your Facebook group links here. One group per line. This is saved on the server.
+          </p>
+
+          <textarea
+            id="facebookGroups"
+            style="min-height: 180px;"
+            placeholder="Paste Facebook group links here, one per line"
+          ></textarea>
+
+          <br />
+          <br />
+
+          <div class="row">
+            <button onclick="saveFacebookGroups()">Save Facebook Groups</button>
+            <span id="facebookGroupsStatus"></span>
+          </div>
+        </div>
+
         <div id="status"></div>
         <div id="results"></div>
 
         <script>
+          let SERVER_FACEBOOK_GROUPS = "";
+
           function escapeHtml(value) {
             return String(value || "")
               .replaceAll("&", "&amp;")
@@ -572,15 +633,59 @@ app.get("/specials", (req, res) => {
               .replaceAll("'", "&#039;");
           }
 
-          const FALLBACK_FACEBOOK_GROUPS = "";
+          async function loadFacebookGroups() {
+            const box = document.getElementById("facebookGroups");
+            const status = document.getElementById("facebookGroupsStatus");
 
-          function getFacebookGroups() {
-            const saved = localStorage.getItem("oceanSpecialsFacebookGroups") || "";
-            return saved.trim() || FALLBACK_FACEBOOK_GROUPS.trim();
+            status.innerHTML = '<span class="small">Loading...</span>';
+
+            const response = await fetch("/api/facebook-groups");
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Failed to load groups") + '</span>';
+              return;
+            }
+
+            SERVER_FACEBOOK_GROUPS = data.groups || "";
+            box.value = SERVER_FACEBOOK_GROUPS;
+
+            status.innerHTML = '<span class="success">Loaded</span>';
+          }
+
+          async function saveFacebookGroups() {
+            const box = document.getElementById("facebookGroups");
+            const status = document.getElementById("facebookGroupsStatus");
+
+            const groups = box.value || "";
+
+            status.innerHTML = '<span class="small">Saving...</span>';
+
+            const response = await fetch("/api/facebook-groups", {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                groups
+              })
+            });
+
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Failed to save groups") + '</span>';
+              return;
+            }
+
+            SERVER_FACEBOOK_GROUPS = data.groups || "";
+            box.value = SERVER_FACEBOOK_GROUPS;
+
+            status.innerHTML = '<span class="success">Saved</span>';
           }
 
           function buildCopyMessage(message) {
-            const groups = getFacebookGroups();
+            const groups = SERVER_FACEBOOK_GROUPS.trim();
 
             if (!groups) {
               return message;
@@ -599,7 +704,7 @@ app.get("/specials", (req, res) => {
             await navigator.clipboard.writeText(fullMessage);
 
             const status = document.getElementById("copy-" + id);
-            status.innerHTML = '<span class="success">Copied</span>';
+            status.innerHTML = '<span class="success">Copied with Facebook groups</span>';
           }
 
           function renderPost(post, index) {
@@ -654,6 +759,8 @@ app.get("/specials", (req, res) => {
 
             results.innerHTML = data.propertyPosts.map(renderPost).join("");
           }
+
+          loadFacebookGroups();
         </script>
       `
     )
