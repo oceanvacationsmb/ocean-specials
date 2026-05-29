@@ -283,6 +283,7 @@ app.get("/api/guesty/calendar-test", async (req, res) => {
     }
 
     const today = new Date();
+
     const from =
       req.query.from ||
       new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)
@@ -696,11 +697,11 @@ app.get("/specials", (req, res) => {
             Specials scan automatically when this page opens. Default is 60 days starting 2 days from today.
           </p>
 
-         <div class="small">
-  Period: Today + 2 days through the next 60 days
-</div>
+          <div class="small">
+            Period: Today + 2 days through the next 60 days
+          </div>
 
-<input id="scanDays" type="hidden" value="60" />
+          <input id="scanDays" type="hidden" value="60" />
         </div>
 
         <details class="card">
@@ -747,6 +748,60 @@ app.get("/specials", (req, res) => {
               .split("\\n")
               .map((line) => line.trim())
               .filter(Boolean);
+          }
+
+          function getScanFrom(data) {
+            return (
+              data.scanFrom ||
+              data.from ||
+              (data.scan && data.scan.from) ||
+              (data.range && data.range.from) ||
+              (data.period && data.period.from) ||
+              (data.scanRange && data.scanRange.from) ||
+              ""
+            );
+          }
+
+          function getScanTo(data) {
+            return (
+              data.scanTo ||
+              data.to ||
+              (data.scan && data.scan.to) ||
+              (data.range && data.range.to) ||
+              (data.period && data.period.to) ||
+              (data.scanRange && data.scanRange.to) ||
+              ""
+            );
+          }
+
+          function getPostTitle(post) {
+            return (
+              post.propertyTitle ||
+              post.title ||
+              post.shortId ||
+              post.propertyId ||
+              post.listingId ||
+              "Property"
+            );
+          }
+
+          function getPostId(post) {
+            return (
+              post.propertyId ||
+              post.listingId ||
+              post.shortId ||
+              ""
+            );
+          }
+
+          function getPostMessage(post) {
+            return post.message || post.post || "";
+          }
+
+          function getPostSpecials(post) {
+            if (Array.isArray(post.specials)) return post.specials;
+            if (Array.isArray(post.gaps)) return post.gaps;
+            return [];
           }
 
           async function loadFacebookGroups() {
@@ -810,60 +865,111 @@ app.get("/specials", (req, res) => {
           }
 
           async function startFacebookPosting(id) {
-  const el = document.getElementById(id);
-  const message = el.value || "";
-  const groups = getCleanFacebookGroups();
+            const el = document.getElementById(id);
+            const message = el.value || "";
+            const groups = getCleanFacebookGroups();
 
-  if (!message.trim()) {
-    alert("Message is empty.");
-    return;
-  }
+            if (!message.trim()) {
+              alert("Message is empty.");
+              return;
+            }
 
-  if (!groups.length) {
-    alert("No Facebook groups saved.");
-    return;
-  }
+            if (!groups.length) {
+              alert("No Facebook groups saved.");
+              return;
+            }
 
-  await navigator.clipboard.writeText(message);
+            await navigator.clipboard.writeText(message);
 
-  window.postMessage(
-    {
-      source: "OCEAN_SPECIALS_APP",
-      type: "START_FB_POSTING",
-      payload: {
-        groups
-      }
-    },
-    "*"
-  );
+            window.postMessage(
+              {
+                source: "OCEAN_SPECIALS_APP",
+                type: "START_FB_POSTING",
+                payload: {
+                  groups
+                }
+              },
+              "*"
+            );
 
-  const status = document.getElementById("posting-" + id);
-  status.innerHTML = '<span class="success">Message copied. Facebook groups opened.</span>';
-}
+            const status = document.getElementById("posting-" + id);
+            status.innerHTML = '<span class="success">Message copied. Facebook groups opened.</span>';
+          }
 
           function renderPost(post, index) {
             const textareaId = "post-" + index;
+            const message = getPostMessage(post);
+            const specials = getPostSpecials(post);
+            const title = getPostTitle(post);
+            const propertyId = getPostId(post);
 
-            const flyerLine = post.flyerImageUrl
+            const flyerLine = post.flyerImageUrl || post.flyerUrl
               ? '<div class="small success">Flyer URL included</div>'
-              : '<div class="small error">No flyer URL saved for this property</div>';
+              : '';
 
             return ''
               + '<div class="card">'
-              + '  <h3>' + escapeHtml(post.propertyTitle) + '</h3>'
-              + '  <div class="small">Property ID: ' + escapeHtml(post.propertyId || "") + '</div>'
-              + '  <div class="small">Specials found: ' + post.specials.length + '</div>'
+              + '  <h3>' + escapeHtml(title) + '</h3>'
+              + '  <div class="small">Property ID: ' + escapeHtml(propertyId) + '</div>'
+              + '  <div class="small">Specials found: ' + specials.length + '</div>'
               +    flyerLine
               + '  <br />'
-              + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(post.message) + '</textarea>'
+              + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(message) + '</textarea>'
               + '  <br /><br />'
               + '  <div class="row">'
-              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Start Posting</button>'
+              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Copy + Open Groups</button>'
               + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
               + '    <span id="copy-' + textareaId + '"></span>'
               + '    <span id="posting-' + textareaId + '"></span>'
               + '  </div>'
               + '</div>';
+          }
+
+          function renderDebug(allResults) {
+            if (!Array.isArray(allResults) || !allResults.length) {
+              return "";
+            }
+
+            return ''
+              + '<details class="card">'
+              + '<summary style="font-weight:800; cursor:pointer;">Scan Debug: All Properties Checked</summary>'
+              + '<br />'
+              + allResults.map((result) => {
+                  const id =
+                    result.propertyId ||
+                    result.listingId ||
+                    result.shortId ||
+                    result.property?.propertyId ||
+                    "";
+
+                  const title =
+                    result.propertyTitle ||
+                    result.title ||
+                    result.property?.propertyTitle ||
+                    result.property?.propertyId ||
+                    result.shortId ||
+                    "Unknown";
+
+                  const specials = Array.isArray(result.specials)
+                    ? result.specials
+                    : Array.isArray(result.gaps)
+                      ? result.gaps
+                      : [];
+
+                  const gapCount = specials.length;
+                  const calendarDays = result.calendarDaysCount || 0;
+                  const availableDays = result.availableDaysCount || 0;
+                  const error = result.error ? " ERROR: " + result.error : "";
+
+                  return escapeHtml(
+                    id + " - " + title +
+                    " - gaps found: " + gapCount +
+                    " - calendar days: " + calendarDays +
+                    " - available days: " + availableDays +
+                    error
+                  );
+                }).join("<br />")
+              + '</details>';
           }
 
           async function generateSpecials() {
@@ -878,7 +984,10 @@ app.get("/specials", (req, res) => {
             status.innerHTML = '<div class="card">Scanning Guesty availability...</div>';
             results.innerHTML = "";
 
-            const response = await fetch("/api/specials/generate?" + params.toString());
+            const response = await fetch("/api/specials/generate?" + params.toString(), {
+              cache: "no-store"
+            });
+
             const data = await response.json();
 
             if (!data.ok) {
@@ -886,30 +995,36 @@ app.get("/specials", (req, res) => {
               return;
             }
 
-            status.innerHTML = '<div class="card">Scan range: ' + escapeHtml(data.scan.from) + ' to ' + escapeHtml(data.scan.to) + '. Found ' + data.propertyPosts.length + ' properties with open gaps.</div>';
-
-            if (!data.propertyPosts.length) {
-              results.innerHTML = '<div class="card">No open gaps found for the selected scan window.</div>';
-              return;
-            }
+            const propertyPosts = Array.isArray(data.propertyPosts)
+              ? data.propertyPosts
+              : Array.isArray(data.posts)
+                ? data.posts
+                : [];
 
             const allResults = Array.isArray(data.results) ? data.results : [];
 
-const debugHtml =
-  '<details class="card">'
-  + '<summary style="font-weight:800; cursor:pointer;">Scan Debug: All Properties Checked</summary>'
-  + '<br />'
-  + allResults.map((result) => {
-      const title = result.property?.propertyTitle || result.property?.propertyId || "Unknown";
-      const id = result.property?.propertyId || "";
-      const gapCount = Array.isArray(result.specials) ? result.specials.length : 0;
-      const error = result.error ? " ERROR: " + result.error : "";
+            const from = getScanFrom(data);
+            const to = getScanTo(data);
 
-      return escapeHtml(id + " - " + title + " - gaps found: " + gapCount + error);
-    }).join("<br />")
-  + '</details>';
+            status.innerHTML =
+              '<div class="card">Scan range: '
+              + escapeHtml(from)
+              + ' to '
+              + escapeHtml(to)
+              + '. Found '
+              + propertyPosts.length
+              + ' properties with open gaps.</div>';
 
-results.innerHTML = debugHtml + data.propertyPosts.map(renderPost).join("");
+            const debugHtml = renderDebug(allResults);
+
+            if (!propertyPosts.length) {
+              results.innerHTML =
+                debugHtml +
+                '<div class="card">No open gaps found for the selected scan window.</div>';
+              return;
+            }
+
+            results.innerHTML = debugHtml + propertyPosts.map(renderPost).join("");
           }
 
           async function startPage() {
@@ -925,5 +1040,5 @@ results.innerHTML = debugHtml + data.propertyPosts.map(renderPost).join("");
 });
 
 app.listen(PORT, () => {
-  console.log(`Ocean Specials server running on port ${PORT}`);
+  console.log("Ocean Specials server running on port " + PORT);
 });
