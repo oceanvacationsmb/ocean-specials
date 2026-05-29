@@ -3,9 +3,7 @@ import {
   getListingCalendar
 } from "./guestyApi.js";
 
-import {
-  getManagedProperties
-} from "./db.js";
+import * as db from "./db.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -51,6 +49,30 @@ function getTodayPlusDays(days) {
   return date.toISOString().slice(0, 10);
 }
 
+async function loadSavedProperties() {
+  if (typeof db.getManagedProperties === "function") {
+    return db.getManagedProperties();
+  }
+
+  if (typeof db.getAllManagedProperties === "function") {
+    return db.getAllManagedProperties();
+  }
+
+  if (typeof db.getProperties === "function") {
+    return db.getProperties();
+  }
+
+  if (typeof db.getPropertySettings === "function") {
+    return db.getPropertySettings();
+  }
+
+  if (typeof db.getAllPropertySettings === "function") {
+    return db.getAllPropertySettings();
+  }
+
+  return [];
+}
+
 function normalizeListingsResponse(data) {
   if (!data) return [];
 
@@ -70,29 +92,13 @@ function normalizeListingsResponse(data) {
 function normalizeCalendarDays(calendarData) {
   if (!calendarData) return [];
 
-  if (Array.isArray(calendarData)) {
-    return calendarData;
-  }
+  if (Array.isArray(calendarData)) return calendarData;
 
-  if (Array.isArray(calendarData.days)) {
-    return calendarData.days;
-  }
-
-  if (Array.isArray(calendarData.calendar)) {
-    return calendarData.calendar;
-  }
-
-  if (Array.isArray(calendarData.result)) {
-    return calendarData.result;
-  }
-
-  if (Array.isArray(calendarData.results)) {
-    return calendarData.results;
-  }
-
-  if (Array.isArray(calendarData.data)) {
-    return calendarData.data;
-  }
+  if (Array.isArray(calendarData.days)) return calendarData.days;
+  if (Array.isArray(calendarData.calendar)) return calendarData.calendar;
+  if (Array.isArray(calendarData.result)) return calendarData.result;
+  if (Array.isArray(calendarData.results)) return calendarData.results;
+  if (Array.isArray(calendarData.data)) return calendarData.data;
 
   if (calendarData.result && Array.isArray(calendarData.result.days)) {
     return calendarData.result.days;
@@ -362,7 +368,9 @@ function buildPost(property) {
   const airbnbUrl = cleanText(savedProperty.airbnb_url || savedProperty.airbnbUrl);
   const vrboUrl = cleanText(savedProperty.vrbo_url || savedProperty.vrboUrl);
   const flyerUrl = cleanText(savedProperty.flyer_url || savedProperty.flyerUrl);
-  const directUrl = cleanText(savedProperty.direct_url || savedProperty.directUrl) || makeDirectUrl(listingId);
+  const directUrl =
+    cleanText(savedProperty.direct_url || savedProperty.directUrl) ||
+    makeDirectUrl(listingId);
 
   const lines = [];
 
@@ -431,6 +439,8 @@ async function scanProperty(property, scanFrom, scanTo) {
     shortId
   } = property;
 
+  console.log(`Scanning ${shortId} ${listingId}`);
+
   try {
     const calendar = await getListingCalendar(listingId, scanFrom, scanTo);
     const gaps = findAvailableGaps(calendar, 1, 60);
@@ -470,7 +480,7 @@ export async function generateSpecials() {
   const listingsResponse = await getAllListings();
   const listings = normalizeListingsResponse(listingsResponse);
 
-  const savedProperties = await getManagedProperties();
+  const savedProperties = await loadSavedProperties();
 
   const managedProperties = listings
     .map((listing) => mergeListingWithSavedSettings(listing, savedProperties))
