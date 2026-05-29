@@ -127,11 +127,9 @@ async function guestyRequest(config, options = {}) {
         }
       }
 
-      if (status === 429 && attempt < maxRetries) {
-        const waitMs = getRetryAfterMs(error, attempt * 15000);
-        await sleep(waitMs);
-        continue;
-      }
+      if (status === 429) {
+  throw new Error("Guesty rate limit 429. Skipped this property.");
+}
 
       throw error;
     }
@@ -173,7 +171,7 @@ export async function getListingCalendar(listingId, startDate, endDate) {
       }
     },
     {
-      maxRetries: 5
+      maxRetries: 1
     }
   );
 }
