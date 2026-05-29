@@ -27,9 +27,7 @@ const PORT = process.env.PORT || 10000;
 
 function getScanOptions(req) {
   return {
-    from: req.query.from || req.body?.from || undefined,
-    to: req.query.to || req.body?.to || undefined,
-    days: req.query.days || req.body?.days || undefined
+    days: req.query.days || req.body?.days || 15
   };
 }
 
@@ -97,12 +95,6 @@ function pageShell(title, body) {
             gap: 14px;
           }
 
-          .grid-4 {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 14px;
-          }
-
           label {
             display: block;
             font-weight: 700;
@@ -120,10 +112,6 @@ function pageShell(title, body) {
             font-size: 14px;
           }
 
-          textarea {
-            min-height: 120px;
-          }
-
           button {
             background: #0f8f9f;
             color: white;
@@ -132,10 +120,6 @@ function pageShell(title, body) {
             padding: 10px 16px;
             font-weight: 800;
             cursor: pointer;
-          }
-
-          button.secondary {
-            background: #062f53;
           }
 
           .row {
@@ -167,7 +151,7 @@ function pageShell(title, body) {
 
           .postbox {
             width: 100%;
-            min-height: 290px;
+            min-height: 340px;
             font-family: Arial, Helvetica, sans-serif;
             font-size: 15px;
           }
@@ -185,7 +169,6 @@ function pageShell(title, body) {
           @media (max-width: 850px) {
             .grid,
             .grid-3,
-            .grid-4,
             .property-header {
               grid-template-columns: 1fr;
             }
@@ -271,13 +254,16 @@ app.get("/api/guesty/calendar-test", async (req, res) => {
       });
     }
 
+    const today = new Date();
     const from =
       req.query.from ||
-      new Date().toISOString().slice(0, 10);
+      new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
 
     const to =
       req.query.to ||
-      new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
+      new Date(today.getTime() + 17 * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10);
 
@@ -356,12 +342,7 @@ app.post("/api/properties/:listingId", async (req, res) => {
 
 app.get("/api/specials/generate", async (req, res) => {
   try {
-    const selectedPropertyIds = req.query.listingId
-      ? String(req.query.listingId).split(",").filter(Boolean)
-      : [];
-
-    const result = await generateSpecials(selectedPropertyIds, getScanOptions(req));
-
+    const result = await generateSpecials([], getScanOptions(req));
     res.json(result);
   } catch (error) {
     res.status(500).json({
@@ -374,12 +355,7 @@ app.get("/api/specials/generate", async (req, res) => {
 
 app.post("/api/specials/generate", async (req, res) => {
   try {
-    const selectedPropertyIds = Array.isArray(req.body?.listingIds)
-      ? req.body.listingIds
-      : [];
-
-    const result = await generateSpecials(selectedPropertyIds, getScanOptions(req));
-
+    const result = await generateSpecials([], getScanOptions(req));
     res.json(result);
   } catch (error) {
     res.status(500).json({
@@ -399,7 +375,7 @@ app.get("/properties", (req, res) => {
           <h2>Property Dashboard</h2>
           <p class="small">
             Guesty supplies the property title, bedrooms, bathrooms, sleeps, city, and main photo automatically.
-            You only need to add Airbnb, VRBO, and the Cloudinary flyer image URL.
+            Add Airbnb, VRBO, and Cloudinary flyer URL only.
           </p>
           <button onclick="loadProperties()">Reload Properties</button>
         </div>
@@ -490,7 +466,7 @@ app.get("/properties", (req, res) => {
               + '      <input id="shortId-' + escapeHtml(id) + '" value="' + escapeHtml(property.shortId || "") + '" placeholder="3104-1" />'
               + '    </div>'
               + '    <div>'
-              + '      <label>Scan Days</label>'
+              + '      <label>Scan Days Per Property</label>'
               + '      <input id="scanDays-' + escapeHtml(id) + '" type="number" value="' + escapeHtml(property.scanDays || 15) + '" />'
               + '    </div>'
               + '  </div>'
@@ -520,7 +496,6 @@ app.get("/properties", (req, res) => {
               + '  <div>'
               + '    <label>Flyer Image URL from Cloudinary</label>'
               + '    <input id="flyerImageUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.flyerImageUrl || "") + '" placeholder="https://res.cloudinary.com/.../image/upload/..." />'
-              + '    <div class="small">This image URL will be added at the end of the generated post.</div>'
               + '  </div>'
               + '  <br />'
               + '  <div class="row">'
@@ -564,60 +539,22 @@ app.get("/specials", (req, res) => {
         <div class="card">
           <h2>Generate Specials</h2>
           <p class="small">
-            This scans Guesty availability and creates the copy/paste post with Facebook groups, Airbnb, VRBO, direct booking, and the saved flyer image URL.
+            Scan starts 2 days from today. Choose 15 days or 30 days only.
           </p>
 
-          <div class="grid-4">
+          <div class="grid">
             <div>
               <label>Scan Filter</label>
-              <select id="scanPreset" onchange="applyScanPreset()">
-                <option value="15">Today to 15 days</option>
-                <option value="30">Today to 30 days</option>
-                <option value="month">Specific month</option>
-                <option value="custom">Custom dates</option>
+              <select id="scanDays">
+                <option value="15">15 days</option>
+                <option value="30">30 days</option>
               </select>
-            </div>
-
-            <div>
-              <label>Specific Month</label>
-              <input id="specificMonth" type="month" onchange="applyScanPreset()" />
-            </div>
-
-            <div>
-              <label>From</label>
-              <input id="from" type="date" />
-            </div>
-
-            <div>
-              <label>To</label>
-              <input id="to" type="date" />
-            </div>
-          </div>
-
-          <br />
-
-          <div>
-            <label>Specific Listing ID Optional</label>
-            <input id="listingId" placeholder="Leave blank for all active properties" />
-          </div>
-
-          <br />
-
-          <div>
-            <label>Facebook Groups</label>
-            <textarea
-              id="facebookGroups"
-              placeholder="Paste Facebook group links here, one per line"
-            ></textarea>
-            <div class="small">
-              Saved in your browser. When you click Copy Message, these groups will be added above the post text.
             </div>
           </div>
 
           <br />
 
           <div class="row">
-            <button onclick="saveFacebookGroups()">Save Facebook Groups</button>
             <button onclick="generateSpecials()">Generate Specials</button>
           </div>
         </div>
@@ -635,84 +572,22 @@ app.get("/specials", (req, res) => {
               .replaceAll("'", "&#039;");
           }
 
-          function toYmd(date) {
-            return date.toISOString().slice(0, 10);
-          }
+          const FALLBACK_FACEBOOK_GROUPS = "";
 
-          function addDays(date, days) {
-            const copy = new Date(date);
-            copy.setDate(copy.getDate() + days);
-            return copy;
-          }
-
-          function getLastDayOfMonth(year, monthIndex) {
-            return new Date(year, monthIndex + 1, 0);
-          }
-
-          function applyScanPreset() {
-            const preset = document.getElementById("scanPreset").value;
-            const fromInput = document.getElementById("from");
-            const toInput = document.getElementById("to");
-            const monthInput = document.getElementById("specificMonth");
-
-            const today = new Date();
-
-            if (preset === "15") {
-              fromInput.value = toYmd(today);
-              toInput.value = toYmd(addDays(today, 15));
-              return;
-            }
-
-            if (preset === "30") {
-              fromInput.value = toYmd(today);
-              toInput.value = toYmd(addDays(today, 30));
-              return;
-            }
-
-            if (preset === "month") {
-              if (!monthInput.value) {
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, "0");
-                monthInput.value = yyyy + "-" + mm;
-              }
-
-              const parts = monthInput.value.split("-");
-              const year = Number(parts[0]);
-              const monthIndex = Number(parts[1]) - 1;
-
-              const first = new Date(year, monthIndex, 1);
-              const last = getLastDayOfMonth(year, monthIndex);
-
-              fromInput.value = toYmd(first);
-              toInput.value = toYmd(addDays(last, 1));
-              return;
-            }
-          }
-
-          function saveFacebookGroups() {
-            const value = document.getElementById("facebookGroups").value || "";
-            localStorage.setItem("oceanSpecialsFacebookGroups", value);
-            alert("Facebook groups saved");
-          }
-
-          function loadFacebookGroups() {
+          function getFacebookGroups() {
             const saved = localStorage.getItem("oceanSpecialsFacebookGroups") || "";
-            const box = document.getElementById("facebookGroups");
-
-            if (box) {
-              box.value = saved;
-            }
+            return saved.trim() || FALLBACK_FACEBOOK_GROUPS.trim();
           }
 
           function buildCopyMessage(message) {
-            const groups = localStorage.getItem("oceanSpecialsFacebookGroups") || "";
+            const groups = getFacebookGroups();
 
-            if (!groups.trim()) {
+            if (!groups) {
               return message;
             }
 
             return "FACEBOOK GROUPS:\\n\\n"
-              + groups.trim()
+              + groups
               + "\\n\\nPOST MESSAGE:\\n\\n"
               + message;
           }
@@ -724,7 +599,7 @@ app.get("/specials", (req, res) => {
             await navigator.clipboard.writeText(fullMessage);
 
             const status = document.getElementById("copy-" + id);
-            status.innerHTML = '<span class="success">Copied with Facebook groups</span>';
+            status.innerHTML = '<span class="success">Copied</span>';
           }
 
           function renderPost(post, index) {
@@ -754,15 +629,10 @@ app.get("/specials", (req, res) => {
             const status = document.getElementById("status");
             const results = document.getElementById("results");
 
-            const from = document.getElementById("from").value;
-            const to = document.getElementById("to").value;
-            const listingId = document.getElementById("listingId").value.trim();
+            const days = document.getElementById("scanDays").value;
 
             const params = new URLSearchParams();
-
-            if (from) params.set("from", from);
-            if (to) params.set("to", to);
-            if (listingId) params.set("listingId", listingId);
+            params.set("days", days);
 
             status.innerHTML = '<div class="card">Scanning Guesty availability...</div>';
             results.innerHTML = "";
@@ -775,7 +645,7 @@ app.get("/specials", (req, res) => {
               return;
             }
 
-            status.innerHTML = '<div class="card">Found ' + data.propertyPosts.length + ' properties with open gaps.</div>';
+            status.innerHTML = '<div class="card">Scan range: ' + escapeHtml(data.scan.from) + ' to ' + escapeHtml(data.scan.to) + '. Found ' + data.propertyPosts.length + ' properties with open gaps.</div>';
 
             if (!data.propertyPosts.length) {
               results.innerHTML = '<div class="card">No open gaps found for the selected scan window.</div>';
@@ -784,9 +654,6 @@ app.get("/specials", (req, res) => {
 
             results.innerHTML = data.propertyPosts.map(renderPost).join("");
           }
-
-          loadFacebookGroups();
-          applyScanPreset();
         </script>
       `
     )
