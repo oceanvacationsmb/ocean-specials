@@ -162,7 +162,6 @@ function createPropertyPost(property, specials) {
 
 Open availability between ${openRange}
 
-${property.propertyTitle}
 ${facts}
 
 ${linksSection}`;
