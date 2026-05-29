@@ -28,27 +28,6 @@ function niceDate(ymd) {
   });
 }
 
-function normalizeSellingPoints(value, sleeps) {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean);
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(/\n|,/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  const points = [];
-
-  if (sleeps) {
-    points.push(`Sleeps ${sleeps}`);
-  }
-
-  return points;
-}
-
 function addOrUpdateParams(url, params) {
   if (!url) return "";
 
@@ -67,15 +46,15 @@ function addOrUpdateParams(url, params) {
   }
 }
 
-function buildGenericLinks(property) {
-  const directBookingUrl =
-    property.directBookingUrl ||
-    `https://oceanvacationsmb.guestybookings.com/properties/${property.listingId}`;
+function buildDirectBookingUrl(property) {
+  return `https://oceanvacationsmb.guestybookings.com/properties/${property.listingId}`;
+}
 
+function buildGenericLinks(property) {
   return {
-    direct: directBookingUrl,
     airbnb: property.airbnbUrl || "",
-    vrbo: property.vrboUrl || ""
+    vrbo: property.vrboUrl || "",
+    direct: buildDirectBookingUrl(property)
   };
 }
 
@@ -83,10 +62,6 @@ function buildDatedLinks(property, checkIn, checkOut) {
   const generic = buildGenericLinks(property);
 
   return {
-    direct: addOrUpdateParams(generic.direct, {
-      checkIn,
-      checkOut
-    }),
     airbnb: addOrUpdateParams(generic.airbnb, {
       check_in: checkIn,
       check_out: checkOut
@@ -94,6 +69,10 @@ function buildDatedLinks(property, checkIn, checkOut) {
     vrbo: addOrUpdateParams(generic.vrbo, {
       arrival: checkIn,
       departure: checkOut
+    }),
+    direct: addOrUpdateParams(generic.direct, {
+      checkIn,
+      checkOut
     })
   };
 }
@@ -117,7 +96,9 @@ function buildFactsLine(property) {
 }
 
 function choosePostLinks(property, specials) {
-  const sorted = [...specials].sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+  const sorted = [...specials].sort((a, b) =>
+    a.checkIn.localeCompare(b.checkIn)
+  );
 
   if (sorted.length === 1 && sorted[0].nights <= 4) {
     return buildDatedLinks(property, sorted[0].checkIn, sorted[0].checkOut);
@@ -127,7 +108,9 @@ function choosePostLinks(property, specials) {
 }
 
 function getOpenRange(specials) {
-  const sorted = [...specials].sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+  const sorted = [...specials].sort((a, b) =>
+    a.checkIn.localeCompare(b.checkIn)
+  );
 
   if (!sorted.length) {
     return "Contact us for dates";
@@ -197,13 +180,12 @@ ${linksSection}`;
     photoUrls: property.photoUrls || [],
     flyerImageUrl: property.flyerImageUrl || "",
 
-    directBookingUrl: property.directBookingUrl,
     airbnbUrl: property.airbnbUrl,
     vrboUrl: property.vrboUrl,
 
-    postDirectLink: postLinks.direct,
     postAirbnbLink: postLinks.airbnb,
     postVrboLink: postLinks.vrbo,
+    postDirectLink: postLinks.direct,
 
     specials: sortedSpecials,
     message
@@ -223,9 +205,6 @@ function convertManagedProperty(property) {
     photoUrl: property.picture,
     photoUrls: property.pictures || [],
 
-    sellingPoints: normalizeSellingPoints(property.sellingPoints, property.sleeps),
-
-    directBookingUrl: property.directBookingUrl,
     airbnbUrl: property.airbnbUrl,
     vrboUrl: property.vrboUrl,
     flyerImageUrl: property.flyerImageUrl || "",
