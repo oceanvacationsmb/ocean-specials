@@ -9,12 +9,8 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function formatDate(date) {
-  const d = new Date(`${date}T00:00:00`);
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric"
-  });
+function cleanText(value) {
+  return String(value || "").trim();
 }
 
 function getDateOnly(value) {
@@ -49,25 +45,38 @@ function getTodayPlusDays(days) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatDate(date) {
+  const d = new Date(`${date}T00:00:00`);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric"
+  });
+}
+
 async function loadSavedProperties() {
   if (typeof db.getManagedProperties === "function") {
-    return db.getManagedProperties();
+    const rows = await db.getManagedProperties();
+    return Array.isArray(rows) ? rows : [];
   }
 
   if (typeof db.getAllManagedProperties === "function") {
-    return db.getAllManagedProperties();
+    const rows = await db.getAllManagedProperties();
+    return Array.isArray(rows) ? rows : [];
   }
 
   if (typeof db.getProperties === "function") {
-    return db.getProperties();
+    const rows = await db.getProperties();
+    return Array.isArray(rows) ? rows : [];
   }
 
   if (typeof db.getPropertySettings === "function") {
-    return db.getPropertySettings();
+    const rows = await db.getPropertySettings();
+    return Array.isArray(rows) ? rows : [];
   }
 
   if (typeof db.getAllPropertySettings === "function") {
-    return db.getAllPropertySettings();
+    const rows = await db.getAllPropertySettings();
+    return Array.isArray(rows) ? rows : [];
   }
 
   return [];
@@ -96,66 +105,35 @@ function normalizeCalendarDays(calendarData) {
 
   if (Array.isArray(calendarData.days)) return calendarData.days;
   if (Array.isArray(calendarData.calendar)) return calendarData.calendar;
-  if (Array.isArray(calendarData.result)) return calendarData.result;
   if (Array.isArray(calendarData.results)) return calendarData.results;
   if (Array.isArray(calendarData.data)) return calendarData.data;
+  if (Array.isArray(calendarData.result)) return calendarData.result;
 
-  if (calendarData.result && Array.isArray(calendarData.result.days)) {
-    return calendarData.result.days;
+  if (calendarData.result) {
+    if (Array.isArray(calendarData.result.days)) return calendarData.result.days;
+    if (Array.isArray(calendarData.result.calendar)) return calendarData.result.calendar;
+    if (Array.isArray(calendarData.result.results)) return calendarData.result.results;
+    if (Array.isArray(calendarData.result.data)) return calendarData.result.data;
   }
 
-  if (calendarData.result && Array.isArray(calendarData.result.calendar)) {
-    return calendarData.result.calendar;
+  if (calendarData.data) {
+    if (Array.isArray(calendarData.data.days)) return calendarData.data.days;
+    if (Array.isArray(calendarData.data.calendar)) return calendarData.data.calendar;
+    if (Array.isArray(calendarData.data.results)) return calendarData.data.results;
   }
 
-  if (calendarData.result && Array.isArray(calendarData.result.results)) {
-    return calendarData.result.results;
-  }
+  const objectSources = [
+    calendarData.calendar,
+    calendarData.days,
+    calendarData.data,
+    calendarData.result?.calendar,
+    calendarData.result?.days,
+    calendarData.result?.data
+  ];
 
-  if (calendarData.result && Array.isArray(calendarData.result.data)) {
-    return calendarData.result.data;
-  }
-
-  if (calendarData.calendar && typeof calendarData.calendar === "object") {
-    return Object.entries(calendarData.calendar).map(([date, value]) => ({
-      date,
-      ...(value || {})
-    }));
-  }
-
-  if (calendarData.days && typeof calendarData.days === "object") {
-    return Object.entries(calendarData.days).map(([date, value]) => ({
-      date,
-      ...(value || {})
-    }));
-  }
-
-  if (calendarData.data && typeof calendarData.data === "object") {
-    return Object.entries(calendarData.data).map(([date, value]) => ({
-      date,
-      ...(value || {})
-    }));
-  }
-
-  if (calendarData.result && typeof calendarData.result === "object") {
-    const result = calendarData.result;
-
-    if (result.calendar && typeof result.calendar === "object") {
-      return Object.entries(result.calendar).map(([date, value]) => ({
-        date,
-        ...(value || {})
-      }));
-    }
-
-    if (result.days && typeof result.days === "object") {
-      return Object.entries(result.days).map(([date, value]) => ({
-        date,
-        ...(value || {})
-      }));
-    }
-
-    if (result.data && typeof result.data === "object") {
-      return Object.entries(result.data).map(([date, value]) => ({
+  for (const source of objectSources) {
+    if (source && typeof source === "object" && !Array.isArray(source)) {
+      return Object.entries(source).map(([date, value]) => ({
         date,
         ...(value || {})
       }));
@@ -187,6 +165,7 @@ function isAvailableCalendarDay(day) {
     day.availableStatus ||
     day.state ||
     day.blockedReason ||
+    day.reason ||
     ""
   ).toLowerCase();
 
@@ -195,9 +174,11 @@ function isAvailableCalendarDay(day) {
   if (day.bookable === true) return true;
   if (day.isBookable === true) return true;
   if (day.canBook === true) return true;
+  if (day.canCheckIn === true && day.canCheckOut === true) return true;
 
   if (status === "available") return true;
   if (status === "bookable") return true;
+  if (status === "free") return true;
   if (status.includes("available") && !status.includes("unavailable")) return true;
 
   if (day.available === false) return false;
@@ -207,19 +188,24 @@ function isAvailableCalendarDay(day) {
   if (day.canBook === false) return false;
 
   if (
-    status.includes("blocked") ||
-    status.includes("reserved") ||
-    status.includes("unavailable") ||
-    status.includes("booked") ||
-    status.includes("occupied")
+    day.blocked === true ||
+    day.isBlocked === true ||
+    day.reserved === true ||
+    day.isReserved === true
   ) {
     return false;
   }
 
-  if (day.blocked === true) return false;
-  if (day.isBlocked === true) return false;
-  if (day.reserved === true) return false;
-  if (day.isReserved === true) return false;
+  if (
+    status.includes("blocked") ||
+    status.includes("reserved") ||
+    status.includes("unavailable") ||
+    status.includes("booked") ||
+    status.includes("occupied") ||
+    status.includes("closed")
+  ) {
+    return false;
+  }
 
   return false;
 }
@@ -239,14 +225,12 @@ function findAvailableGaps(calendarData, minNights = 1, maxNights = 60) {
   let previousDate = null;
 
   for (const day of calendarDays) {
-    const currentDate = day._date;
-
     if (day._available) {
       if (!gapStart) {
-        gapStart = currentDate;
+        gapStart = day._date;
       }
 
-      previousDate = currentDate;
+      previousDate = day._date;
       continue;
     }
 
@@ -264,7 +248,7 @@ function findAvailableGaps(calendarData, minNights = 1, maxNights = 60) {
     }
 
     gapStart = null;
-    previousDate = currentDate;
+    previousDate = day._date;
   }
 
   if (gapStart && previousDate) {
@@ -288,18 +272,12 @@ function getListingId(listing) {
 }
 
 function getPropertyShortId(listing) {
-  const nickname = listing.nickname || listing.title || "";
-  const match = nickname.match(/\b\d{3,5}(?:[-/]\d+)?[A-Z]?\b/i);
+  const text = `${listing.nickname || ""} ${listing.title || ""}`;
+  const match = text.match(/\b\d{3,5}(?:[-/]\d+)?[A-Z]?\b/i);
 
-  if (match) {
-    return match[0];
-  }
+  if (match) return match[0];
 
   return getListingId(listing).slice(-6);
-}
-
-function cleanText(value) {
-  return String(value || "").trim();
 }
 
 function getLocation(listing, savedProperty = {}) {
@@ -349,18 +327,10 @@ function formatGapTitle(gap) {
     return `Flexible availability between ${start} and ${end}:`;
   }
 
-  const nightLabel = gap.nights === 1 ? "night" : "nights";
-
-  return `Available now for ${gap.nights} ${nightLabel} between ${start} and ${end}:`;
+  return `Available now for ${gap.nights} ${gap.nights === 1 ? "night" : "nights"} between ${start} and ${end}:`;
 }
 
-function buildPost(property) {
-  const {
-    listing,
-    savedProperty,
-    gaps
-  } = property;
-
+function buildPost({ listing, savedProperty, gaps }) {
   const listingId = getListingId(listing);
   const location = getLocation(listing, savedProperty);
   const factsLine = getFactsLine(listing);
@@ -443,6 +413,7 @@ async function scanProperty(property, scanFrom, scanTo) {
 
   try {
     const calendar = await getListingCalendar(listingId, scanFrom, scanTo);
+    const calendarDays = normalizeCalendarDays(calendar);
     const gaps = findAvailableGaps(calendar, 1, 60);
 
     return {
@@ -452,6 +423,9 @@ async function scanProperty(property, scanFrom, scanTo) {
       specials: gaps,
       gaps,
       error: null,
+      calendarDaysCount: calendarDays.length,
+      availableDaysCount: calendarDays.filter((day) => isAvailableCalendarDay(day)).length,
+      firstCalendarDay: calendarDays[0] || null,
       post: gaps.length
         ? buildPost({
             listing,
@@ -468,6 +442,9 @@ async function scanProperty(property, scanFrom, scanTo) {
       specials: [],
       gaps: [],
       error: error.message || "Calendar scan failed",
+      calendarDaysCount: 0,
+      availableDaysCount: 0,
+      firstCalendarDay: null,
       post: ""
     };
   }
@@ -507,25 +484,26 @@ export async function generateSpecials() {
     }));
 
   return {
-  ok: true,
+    ok: true,
 
-  scanFrom,
-  scanTo,
+    range: {
+      from: scanFrom,
+      to: scanTo
+    },
 
-  range: {
-    from: scanFrom,
-    to: scanTo
-  },
+    scanRange: {
+      from: scanFrom,
+      to: scanTo
+    },
 
-  scanRange: {
-    from: scanFrom,
-    to: scanTo
-  },
+    scanFrom,
+    scanTo,
+    scanDays: 60,
 
-  scanDays: 60,
-  totalProperties: managedProperties.length,
-  foundProperties: propertyPosts.length,
-  propertyPosts,
-  results: propertyResults
-};
+    totalProperties: managedProperties.length,
+    foundProperties: propertyPosts.length,
+
+    propertyPosts,
+    results: propertyResults
+  };
 }
