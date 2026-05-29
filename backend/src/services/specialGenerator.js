@@ -118,42 +118,37 @@ function buildGapSections(specials) {
     a.checkIn.localeCompare(b.checkIn)
   );
 
-  const oneNight = sorted.filter((gap) => gap.nights === 1);
-  const twoNights = sorted.filter((gap) => gap.nights === 2);
-  const threeToSix = sorted.filter((gap) => gap.nights >= 3 && gap.nights <= 6);
-  const sevenPlus = sorted.filter((gap) => gap.nights >= 7);
+  const lines = [];
 
-  const sections = [];
+  for (const gap of sorted) {
+    const gapNights = gap.nights || diffDays(gap.checkIn, gap.checkOut);
 
-  if (oneNight.length) {
-    sections.push(
-      `1 night openings:\n${oneNight.map(formatGapLine).join("\n")}`
-    );
+    if (gapNights === 1) {
+      lines.push(formatGapLine(gap));
+      continue;
+    }
+
+    if (gapNights === 2) {
+      lines.push(formatGapLine(gap));
+      continue;
+    }
+
+    if (gapNights >= 3 && gapNights <= 6) {
+      lines.push(formatGapLine(gap));
+      continue;
+    }
+
+    if (gapNights >= 7) {
+      lines.push(formatGapLine(gap));
+      continue;
+    }
   }
 
-  if (twoNights.length) {
-    sections.push(
-      `2 night openings:\n${twoNights.map(formatGapLine).join("\n")}`
-    );
-  }
-
-  if (threeToSix.length) {
-    sections.push(
-      `3 to 6 night openings:\n${threeToSix.map(formatGapLine).join("\n")}`
-    );
-  }
-
-  if (sevenPlus.length) {
-    sections.push(
-      `7+ night openings:\n${sevenPlus.map(formatGapLine).join("\n")}`
-    );
-  }
-
-  if (!sections.length) {
+  if (!lines.length) {
     return "Contact us for open dates.";
   }
 
-  return sections.join("\n\n");
+  return `Available dates:\n${lines.join("\n")}`;
 }
 
 function buildLinksSection(postLinks, flyerImageUrl) {
