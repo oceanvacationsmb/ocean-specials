@@ -113,42 +113,39 @@ function formatGapLine(gap) {
   return `• ${gap.checkInNice} to ${gap.checkOutNice} (${nightText})`;
 }
 
-function buildGapSections(specials) {
+function buildAvailabilitySections(specials) {
   const sorted = [...specials].sort((a, b) =>
     a.checkIn.localeCompare(b.checkIn)
   );
 
-  const lines = [];
-
-  for (const gap of sorted) {
-    const gapNights = gap.nights || diffDays(gap.checkIn, gap.checkOut);
-
-    if (gapNights === 1) {
-      lines.push(formatGapLine(gap));
-      continue;
-    }
-
-    if (gapNights === 2) {
-      lines.push(formatGapLine(gap));
-      continue;
-    }
-
-    if (gapNights >= 3 && gapNights <= 6) {
-      lines.push(formatGapLine(gap));
-      continue;
-    }
-
-    if (gapNights >= 7) {
-      lines.push(formatGapLine(gap));
-      continue;
-    }
-  }
-
-  if (!lines.length) {
+  if (!sorted.length) {
     return "Contact us for open dates.";
   }
 
-  return `Available dates:\n${lines.join("\n")}`;
+  const sections = [];
+
+  for (const gap of sorted) {
+    const gapNights = gap.nights || diffDays(gap.checkIn, gap.checkOut);
+    const nightText = gapNights === 1 ? "1 night" : `${gapNights} nights`;
+
+    if (gapNights >= 4) {
+      sections.push(
+        `Flexible availability between ${gap.checkInNice} and ${gap.checkOutNice}:\n${formatGapLine({
+          ...gap,
+          nights: gapNights
+        })}`
+      );
+    } else {
+      sections.push(
+        `Available now for ${nightText} between ${gap.checkInNice} and ${gap.checkOutNice}:\n${formatGapLine({
+          ...gap,
+          nights: gapNights
+        })}`
+      );
+    }
+  }
+
+  return `Available dates:\n\n${sections.join("\n\n")}`;
 }
 
 function buildLinksSection(postLinks, flyerImageUrl) {
@@ -170,7 +167,8 @@ ${postLinks.direct}`);
   }
 
   if (flyerImageUrl) {
-    lines.push(flyerImageUrl);
+    lines.push(`Flyer:
+${flyerImageUrl}`);
   }
 
   return lines.join("\n\n");
@@ -182,15 +180,17 @@ function createPropertyPost(property, specials) {
   );
 
   const facts = buildFactsLine(property);
-  const gapSections = buildGapSections(sortedSpecials);
+  const availabilitySections = buildAvailabilitySections(sortedSpecials);
   const postLinks = choosePostLinks(property, sortedSpecials);
   const linksSection = buildLinksSection(postLinks, property.flyerImageUrl);
 
-  const message = `LAST MINUTE DEALS IN "${property.location}"
+  const titleLine = facts
+    ? `LAST MINUTE DEALS IN "${property.location}" - ${facts}`
+    : `LAST MINUTE DEALS IN "${property.location}"`;
 
-${gapSections}
+  const message = `${titleLine}
 
-${facts}
+${availabilitySections}
 
 ${linksSection}`;
 
