@@ -475,17 +475,20 @@ app.get("/properties", (req, res) => {
             Guesty supplies the property title, bedrooms, bathrooms, sleeps, city, and main photo automatically.
             Add Airbnb, VRBO, and Cloudinary flyer URL only.
           </p>
+
           <div class="row">
-  <button onclick="loadProperties()">Reload Properties</button>
-  <button onclick="saveAllProperties()">Save All Properties</button>
-  <span id="saveAllStatus"></span>
-</div>
+            <button onclick="loadProperties()">Reload Properties</button>
+            <button onclick="saveAllProperties()">Save All Properties</button>
+            <span id="saveAllStatus"></span>
+          </div>
         </div>
 
         <div id="status"></div>
         <div id="properties"></div>
 
         <script>
+          let CURRENT_PROPERTIES = [];
+
           function escapeHtml(value) {
             return String(value || "")
               .replaceAll("&", "&amp;")
@@ -505,70 +508,68 @@ app.get("/properties", (req, res) => {
             return el ? el.checked : false;
           }
 
-          async function saveProperty(listingId) {let CURRENT_PROPERTIES = [];
+          function buildPropertyBody(listingId) {
+            return {
+              listingId,
+              shortId: getValue("shortId-" + listingId),
+              active: getChecked("active-" + listingId),
+              airbnbUrl: getValue("airbnbUrl-" + listingId),
+              vrboUrl: getValue("vrboUrl-" + listingId),
+              flyerImageUrl: getValue("flyerImageUrl-" + listingId),
+              minNights: 1,
+              maxNights: 60,
+              scanDays: 60
+            };
+          }
 
-function buildPropertyBody(listingId) {
-  return {
-    listingId,
-    shortId: getValue("shortId-" + listingId),
-    active: getChecked("active-" + listingId),
-    airbnbUrl: getValue("airbnbUrl-" + listingId),
-    vrboUrl: getValue("vrboUrl-" + listingId),
-    flyerImageUrl: getValue("flyerImageUrl-" + listingId),
-    minNights: Number(getValue("minNights-" + listingId) || 1),
-    maxNights: Number(getValue("maxNights-" + listingId) || 60),
-    scanDays: Number(getValue("scanDays-" + listingId) || 60)
-  };
-}
+          async function saveProperty(listingId) {
+            const body = buildPropertyBody(listingId);
 
-async function saveProperty(listingId) {
-  const body = buildPropertyBody(listingId);
+            const response = await fetch("/api/properties/" + encodeURIComponent(listingId), {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(body)
+            });
 
-  const response = await fetch("/api/properties/" + encodeURIComponent(listingId), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
+            const data = await response.json();
+            const status = document.getElementById("saveStatus-" + listingId);
 
-  const data = await response.json();
-  const status = document.getElementById("saveStatus-" + listingId);
+            if (data.ok) {
+              status.innerHTML = '<span class="success">Saved</span>';
+            } else {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Save failed") + '</span>';
+            }
+          }
 
-  if (data.ok) {
-    status.innerHTML = '<span class="success">Saved</span>';
-  } else {
-    status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Save failed") + '</span>';
-  }
-}
+          async function saveAllProperties() {
+            const status = document.getElementById("saveAllStatus");
 
-async function saveAllProperties() {
-  const status = document.getElementById("saveAllStatus");
+            status.innerHTML = '<span class="small">Saving all...</span>';
 
-  status.innerHTML = '<span class="small">Saving all...</span>';
+            const properties = CURRENT_PROPERTIES.map((property) =>
+              buildPropertyBody(property.listingId)
+            );
 
-  const properties = CURRENT_PROPERTIES.map((property) =>
-    buildPropertyBody(property.listingId)
-  );
+            const response = await fetch("/api/properties-bulk", {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                properties
+              })
+            });
 
-  const response = await fetch("/api/properties-bulk", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      properties
-    })
-  });
+            const data = await response.json();
 
-  const data = await response.json();
-
-  if (data.ok) {
-    status.innerHTML = '<span class="success">Saved all ' + data.count + ' properties</span>';
-  } else {
-    status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Save all failed") + '</span>';
-  }
-}
+            if (data.ok) {
+              status.innerHTML = '<span class="success">Saved all ' + data.count + ' properties</span>';
+            } else {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Save all failed") + '</span>';
+            }
+          }
 
           function renderProperty(property) {
             const id = property.listingId;
@@ -592,49 +593,63 @@ async function saveAllProperties() {
               + '      </div>'
               + '    </div>'
               + '  </div>'
+
               + '  <br />'
+
               + '  <div class="grid-3">'
               + '    <div>'
               + '      <label>Active</label>'
               + '      <input id="active-' + escapeHtml(id) + '" type="checkbox" ' + (property.active !== false ? "checked" : "") + ' style="width:auto;" />'
               + '    </div>'
+
               + '    <div>'
               + '      <label>Property Short ID</label>'
               + '      <input id="shortId-' + escapeHtml(id) + '" value="' + escapeHtml(property.shortId || "") + '" placeholder="3104-1" />'
               + '    </div>'
+
               + '    <div>'
               + '      <label>Scan Days Per Property</label>'
-              + '      <input id="scanDays-' + escapeHtml(id) + '" type="number" value="60" />
+              + '      <input id="scanDays-' + escapeHtml(id) + '" type="number" value="60" readonly />'
               + '    </div>'
               + '  </div>'
+
               + '  <br />'
+
               + '  <div class="grid">'
               + '    <div>'
               + '      <label>Min Nights</label>'
-              + '      <input id="minNights-' + escapeHtml(id) + '" type="number" value="1" />
+              + '      <input id="minNights-' + escapeHtml(id) + '" type="number" value="1" readonly />'
               + '    </div>'
+
               + '    <div>'
               + '      <label>Max Nights</label>'
-              + '      <input id="maxNights-' + escapeHtml(id) + '" type="number" value="60" />
+              + '      <input id="maxNights-' + escapeHtml(id) + '" type="number" value="60" readonly />'
               + '    </div>'
               + '  </div>'
+
               + '  <br />'
+
               + '  <div class="grid">'
               + '    <div>'
               + '      <label>Airbnb URL</label>'
               + '      <input id="airbnbUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.airbnbUrl || "") + '" placeholder="https://www.airbnb.com/rooms/..." />'
               + '    </div>'
+
               + '    <div>'
               + '      <label>VRBO URL</label>'
               + '      <input id="vrboUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.vrboUrl || "") + '" placeholder="https://www.vrbo.com/..." />'
               + '    </div>'
               + '  </div>'
+
               + '  <br />'
+
               + '  <div>'
               + '    <label>Flyer Image URL from Cloudinary</label>'
               + '    <input id="flyerImageUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.flyerImageUrl || "") + '" placeholder="https://res.cloudinary.com/.../image/upload/..." />'
               + '  </div>'
+
               + '  <br />'
+
               + '  <div class="row">'
               + '    <button onclick="saveProperty(\\'' + escapeHtml(id) + '\\')">Save Property</button>'
               + '    <span id="saveStatus-' + escapeHtml(id) + '"></span>'
@@ -660,7 +675,7 @@ async function saveAllProperties() {
             CURRENT_PROPERTIES = data.properties || [];
 
             status.innerHTML = '<div class="card">Loaded ' + CURRENT_PROPERTIES.length + ' properties.</div>';
-container.innerHTML = CURRENT_PROPERTIES.map(renderProperty).join("");
+            container.innerHTML = CURRENT_PROPERTIES.map(renderProperty).join("");
           }
 
           loadProperties();
