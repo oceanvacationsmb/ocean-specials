@@ -1,5 +1,6 @@
 const pendingPostsByTabId = new Map();
 const postingWindowIds = new Set();
+const filledTabIds = new Set();
 
 function cleanGroups(groups) {
   if (!Array.isArray(groups)) {
@@ -30,22 +31,31 @@ function getGridPosition(index) {
 }
 
 async function sendFillMessage(tabId, message, attempt = 1) {
+  if (filledTabIds.has(tabId)) {
+    return;
+  }
+
   try {
-    await chrome.tabs.sendMessage(tabId, {
+    const response = await chrome.tabs.sendMessage(tabId, {
       type: "FILL_FACEBOOK_POST",
       message
     });
+
+    if (response?.ok) {
+      filledTabIds.add(tabId);
+    }
   } catch (error) {
-    if (attempt < 12) {
+    if (attempt < 10 && !filledTabIds.has(tabId)) {
       setTimeout(() => {
         sendFillMessage(tabId, message, attempt + 1);
-      }, 1000);
+      }, 1200);
     }
   }
 }
 
 async function openPostingWindows(message, groups) {
   pendingPostsByTabId.clear();
+  filledTabIds.clear();
 
   const clean = cleanGroups(groups);
 
@@ -80,12 +90,13 @@ async function closePostingWindows() {
 
   postingWindowIds.clear();
   pendingPostsByTabId.clear();
+  filledTabIds.clear();
 
   for (const windowId of ids) {
     try {
       await chrome.windows.remove(windowId);
     } catch (error) {
-      // Window already closed.
+      // already closed
     }
   }
 }
@@ -104,12 +115,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request?.type === "FB_CONTENT_READY") {
     const tabId = sender?.tab?.id;
 
-    if (tabId && pendingPostsByTabId.has(tabId)) {
+    if (tabId && pendingPostsByTabId.has(tabId) && !filledTabIds.has(tabId)) {
       const message = pendingPostsByTabId.get(tabId);
 
       setTimeout(() => {
         sendFillMessage(tabId, message);
-      }, 1500);
+      }, 1800);
     }
 
     sendResponse({
@@ -141,6 +152,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     return;
   }
 
+  if (filledTabIds.has(tabId)) {
+    return;
+  }
+
   if (!tab.url || !tab.url.startsWith("https://www.facebook.com/groups/")) {
     return;
   }
@@ -149,5 +164,5 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
   setTimeout(() => {
     sendFillMessage(tabId, message);
-  }, 2000);
+  }, 2500);
 });
