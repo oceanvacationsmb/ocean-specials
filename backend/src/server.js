@@ -728,36 +728,37 @@ app.get("/specials", (req, res) => {
             status.innerHTML = '<span class="success">Copied</span>';
           }
 
-          function startFacebookPosting(id) {
-            const el = document.getElementById(id);
-            const message = el.value || "";
-            const groups = getCleanFacebookGroups();
+          async function startFacebookPosting(id) {
+  const el = document.getElementById(id);
+  const message = el.value || "";
+  const groups = getCleanFacebookGroups();
 
-            if (!message.trim()) {
-              alert("Message is empty.");
-              return;
-            }
+  if (!message.trim()) {
+    alert("Message is empty.");
+    return;
+  }
 
-            if (!groups.length) {
-              alert("No Facebook groups saved.");
-              return;
-            }
+  if (!groups.length) {
+    alert("No Facebook groups saved.");
+    return;
+  }
 
-            window.postMessage(
-              {
-                source: "OCEAN_SPECIALS_APP",
-                type: "START_FB_POSTING",
-                payload: {
-                  message,
-                  groups
-                }
-              },
-              "*"
-            );
+  await navigator.clipboard.writeText(message);
 
-            const status = document.getElementById("posting-" + id);
-            status.innerHTML = '<span class="success">Opening Facebook posting windows...</span>';
-          }
+  window.postMessage(
+    {
+      source: "OCEAN_SPECIALS_APP",
+      type: "START_FB_POSTING",
+      payload: {
+        groups
+      }
+    },
+    "*"
+  );
+
+  const status = document.getElementById("posting-" + id);
+  status.innerHTML = '<span class="success">Message copied. Facebook groups opened.</span>';
+}
 
           function renderPost(post, index) {
             const textareaId = "post-" + index;
