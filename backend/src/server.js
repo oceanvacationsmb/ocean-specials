@@ -718,5 +718,5 @@ app.get("/specials", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(\`Ocean Specials server running on port \${PORT}\`);
+  console.log(`Ocean Specials server running on port ${PORT}`);
 });
