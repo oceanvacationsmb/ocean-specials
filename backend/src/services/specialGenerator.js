@@ -305,20 +305,18 @@ export async function generateSpecials(selectedPropertyIds = [], options = {}) {
   const propertyResults = [];
 
   for (const property of properties) {
-    try {
-      const result = await scanProperty(property, scanFromYmd, scanToYmd);
+  try {
+    const result = await scanProperty(property, scanFromYmd, scanToYmd);
 
-      if (result.specials.length) {
-        propertyResults.push(result);
-      }
-    } catch (error) {
-      propertyResults.push({
-        property,
-        specials: [],
-        error: error.message
-      });
-    }
+    propertyResults.push(result);
+  } catch (error) {
+    propertyResults.push({
+      property,
+      specials: [],
+      error: error.message
+    });
   }
+}
 
   const propertyPosts = propertyResults
     .filter((result) => result.specials.length)
