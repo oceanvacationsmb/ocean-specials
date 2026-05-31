@@ -287,11 +287,64 @@ function getFactsLine(listing) {
   const bathrooms = getBathrooms(listing);
   const sleeps = getSleeps(listing);
 
-  if (bedrooms) facts.push(`${bedrooms} Bedrooms`);
-  if (bathrooms) facts.push(`${bathrooms} Bathrooms`);
-  if (sleeps) facts.push(`Sleeps ${sleeps}`);
+  if (bedrooms) facts.push(`🛏️ ${bedrooms} Bedrooms`);
+  if (bathrooms) facts.push(`🛁 ${bathrooms} Bathrooms`);
+  if (sleeps) facts.push(`👥 Sleeps ${sleeps}`);
 
   return facts.join(" • ");
+}
+
+function getAmenitiesLine(listing) {
+  const values = Array.isArray(listing.amenities) ? listing.amenities : [];
+  const available = new Set(
+    values
+      .map((value) =>
+        cleanText(
+          typeof value === "string"
+            ? value
+            : value?.name || value?.title || value?.label || ""
+        ).toLowerCase()
+      )
+      .filter(Boolean)
+  );
+
+  const highlights = [
+    { label: "Private Pool", icon: "🏊", matches: ["private pool"] },
+    { label: "Pool", icon: "🏊", matches: ["pool", "communal pool", "indoor pool", "outdoor pool", "swimming pool"] },
+    { label: "Hot Tub", icon: "♨️", matches: ["hot tub", "jacuzzi"] },
+    { label: "Ping-Pong Table", icon: "🏓", matches: ["ping pong table", "ping-pong table", "table tennis"] },
+    { label: "Pool Table", icon: "🎱", matches: ["pool table", "billiards"] },
+    { label: "Game Room", icon: "🎮", matches: ["game room", "games room"] },
+    { label: "Oceanfront", icon: "🌊", matches: ["ocean front", "oceanfront", "beach front", "beachfront", "waterfront"] },
+    { label: "Ocean View", icon: "🌅", matches: ["ocean view", "sea view", "beach view", "water view"] },
+    { label: "Beach Access", icon: "🏖️", matches: ["beach access", "beach"] },
+    { label: "BBQ Grill", icon: "🔥", matches: ["bbq grill", "barbecue grill"] },
+    { label: "Elevator", icon: "🛗", matches: ["elevator"] },
+    { label: "Free Parking", icon: "🅿️", matches: ["free parking on premises", "free parking on street", "free parking"] }
+  ];
+
+  const selected = [];
+
+  for (const highlight of highlights) {
+    const isMatch = highlight.matches.some((match) => available.has(match));
+
+    if (!isMatch) continue;
+
+    if (
+      highlight.label === "Pool" &&
+      selected.some((item) => item.label === "Private Pool")
+    ) {
+      continue;
+    }
+
+    if (selected.length >= 6) break;
+
+    selected.push(highlight);
+  }
+
+  return selected
+    .map((item) => `${item.icon} ${item.label}`)
+    .join(" • ");
 }
 
 function makeDirectUrl(listingId) {
@@ -325,6 +378,7 @@ function buildPost({ listing, savedProperty, gaps }) {
   const listingId = getListingId(listing);
   const location = getLocation(listing, savedProperty);
   const factsLine = getFactsLine(listing);
+  const amenitiesLine = getAmenitiesLine(listing);
 
   const airbnbUrl = cleanText(
     savedProperty.airbnbUrl ||
@@ -348,7 +402,9 @@ function buildPost({ listing, savedProperty, gaps }) {
 
   const lines = [];
 
-  lines.push(`LAST MINUTE DEALS IN "${location}"${factsLine ? ` - ${factsLine}` : ""}`);
+  lines.push(`🔥 LAST MINUTE DEALS IN ${location.toUpperCase()} 🔥`);
+  if (factsLine) lines.push(factsLine);
+  if (amenitiesLine) lines.push(amenitiesLine);
   lines.push("");
   lines.push("Available dates:");
   lines.push("");
