@@ -1209,6 +1209,59 @@ app.get("/specials", (req, res) => {
               + '</div>';
           }
 
+          function renderOffSeasonScanResults(allResults) {
+            if (!Array.isArray(allResults) || !allResults.length) {
+              return "";
+            }
+
+            return ''
+              + '<div class="card">'
+              + '  <h3>Properties Checked</h3>'
+              + allResults.map((result) => {
+                  const propertyId =
+                    result.propertyId ||
+                    result.shortId ||
+                    result.listingId ||
+                    "";
+                  const title =
+                    result.title ||
+                    result.propertyTitle ||
+                    propertyId;
+                  const monthlyGaps = Array.isArray(result.monthlyGaps)
+                    ? result.monthlyGaps
+                    : [];
+                  const calendarDays = Number(result.calendarDaysCount || 0);
+                  const availableDays = Number(result.availableDaysCount || 0);
+                  let statusHtml = "";
+
+                  if (result.error) {
+                    statusHtml =
+                      '<div class="error">Scan error: '
+                      + escapeHtml(result.error)
+                      + '</div>';
+                  } else if (monthlyGaps.length) {
+                    statusHtml =
+                      '<div class="success">Available: '
+                      + monthlyGaps.length
+                      + ' continuous monthly opening'
+                      + (monthlyGaps.length === 1 ? '' : 's')
+                      + ' found.</div>';
+                  } else {
+                    statusHtml =
+                      '<div class="small">No continuous 30-night opening found.</div>';
+                  }
+
+                  return ''
+                    + '<div style="padding:14px 0; border-top:1px solid #d9e3ea;">'
+                    + '  <strong>' + escapeHtml(propertyId) + ' - ' + escapeHtml(title) + '</strong>'
+                    + '  <div class="small">Calendar days checked: ' + calendarDays
+                    + ' | Available days: ' + availableDays + '</div>'
+                    +    statusHtml
+                    + '</div>';
+                }).join("")
+              + '</div>';
+          }
+
           function renderDebug(allResults) {
             if (!Array.isArray(allResults) || !allResults.length) {
               return "";
@@ -1332,21 +1385,34 @@ app.get("/specials", (req, res) => {
             const propertyPosts = Array.isArray(data.propertyPosts)
               ? data.propertyPosts
               : [];
+            const allResults = Array.isArray(data.results)
+              ? data.results
+              : [];
+            const scanErrors = allResults.filter((result) => result.error).length;
 
             status.innerHTML =
               '<div class="card">Scanned '
               + Number(data.scannedProperties || 0)
               + ' configured properties. Found '
               + propertyPosts.length
-              + ' off season rentals with at least one continuous 30-night opening.</div>';
+              + ' off season rentals with at least one continuous 30-night opening.'
+              + (scanErrors
+                ? ' <span class="error">' + scanErrors + ' properties could not be scanned.</span>'
+                : '')
+              + '</div>';
+
+            const scanResultsHtml = renderOffSeasonScanResults(allResults);
 
             if (!propertyPosts.length) {
               results.innerHTML =
+                scanResultsHtml +
                 '<div class="card">No configured properties currently have a continuous 30-night opening during their saved off-season period.</div>';
               return;
             }
 
-            results.innerHTML = propertyPosts.map(renderOffSeasonPost).join("");
+            results.innerHTML =
+              scanResultsHtml +
+              propertyPosts.map(renderOffSeasonPost).join("");
           }
 
           async function startPage() {

@@ -151,6 +151,33 @@ function getMonthValue(value) {
   return String(value || "").slice(0, 7);
 }
 
+function formatDateOnly(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  }
+
+  const text = String(value);
+  const dateOnlyMatch = text.match(/^\d{4}-\d{2}-\d{2}/);
+
+  if (dateOnlyMatch) {
+    return dateOnlyMatch[0];
+  }
+
+  const parsed = new Date(text);
+
+  return Number.isNaN(parsed.getTime())
+    ? ""
+    : parsed.toISOString().slice(0, 10);
+}
+
 function getFirstDayOfMonth(value, fallback) {
   const monthValue = getMonthValue(value || fallback);
 
@@ -229,12 +256,8 @@ async function getSavedSettingsFromDatabase() {
       scanDays: Number(row.scan_days || 45),
       offSeasonActive: row.off_season_active === true,
       offSeasonMonthlyRate: Number(row.off_season_monthly_rate || 0),
-      offSeasonStartDate: row.off_season_start_date
-        ? String(row.off_season_start_date).slice(0, 10)
-        : "",
-      offSeasonEndDate: row.off_season_end_date
-        ? String(row.off_season_end_date).slice(0, 10)
-        : ""
+      offSeasonStartDate: formatDateOnly(row.off_season_start_date),
+      offSeasonEndDate: formatDateOnly(row.off_season_end_date)
     };
   }
 
