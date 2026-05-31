@@ -9,6 +9,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const CONFIG_PATH = path.join(__dirname, "../data/property-config.json");
+const shortIdCollator = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base"
+});
 
 function getRawListings(data) {
   const rawListings =
@@ -132,6 +136,13 @@ function buildDefaultShortId(title, listingId) {
   return String(listingId).slice(-6).toUpperCase();
 }
 
+function comparePropertiesByShortId(a, b) {
+  return shortIdCollator.compare(
+    String(a.shortId || ""),
+    String(b.shortId || "")
+  );
+}
+
 async function readJsonFallbackConfig() {
   try {
     const text = await fs.readFile(CONFIG_PATH, "utf8");
@@ -194,36 +205,38 @@ export async function getManagedPropertiesFromListings(data) {
   const rawListings = getRawListings(data);
   const savedSettings = await getSavedSettings();
 
-  return rawListings.map((listing) => {
-    const listingId = listing._id || listing.id || "";
-    const saved = savedSettings[listingId] || {};
+  return rawListings
+    .map((listing) => {
+      const listingId = listing._id || listing.id || "";
+      const saved = savedSettings[listingId] || {};
 
-    const title = getTitle(listing);
-    const shortId = saved.shortId || buildDefaultShortId(title, listingId);
-    const pictures = getPictures(listing);
+      const title = getTitle(listing);
+      const shortId = saved.shortId || buildDefaultShortId(title, listingId);
+      const pictures = getPictures(listing);
 
-    return {
-      listingId,
-      shortId,
-      title,
-      city: getCity(listing),
-      bedrooms: getBedrooms(listing),
-      bathrooms: getBathrooms(listing),
-      sleeps: getSleeps(listing),
-      picture: pictures[0] || "",
-      pictures,
+      return {
+        listingId,
+        shortId,
+        title,
+        city: getCity(listing),
+        bedrooms: getBedrooms(listing),
+        bathrooms: getBathrooms(listing),
+        sleeps: getSleeps(listing),
+        picture: pictures[0] || "",
+        pictures,
 
-      active: saved.active !== false,
+        active: saved.active !== false,
 
-      airbnbUrl: saved.airbnbUrl || "",
-      vrboUrl: saved.vrboUrl || "",
-      flyerImageUrl: saved.flyerImageUrl || "",
+        airbnbUrl: saved.airbnbUrl || "",
+        vrboUrl: saved.vrboUrl || "",
+        flyerImageUrl: saved.flyerImageUrl || "",
 
-      minNights: Number(saved.minNights ?? 1),
-      maxNights: Number(saved.maxNights ?? 45),
-      scanDays: Number(saved.scanDays ?? 45)
-    };
-  });
+        minNights: Number(saved.minNights ?? 1),
+        maxNights: Number(saved.maxNights ?? 45),
+        scanDays: Number(saved.scanDays ?? 45)
+      };
+    })
+    .sort(comparePropertiesByShortId);
 }
 
 export async function saveManagedProperty(listingId, data) {

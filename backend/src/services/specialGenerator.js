@@ -7,6 +7,11 @@ import {
   getManagedPropertiesFromListings
 } from "./propertyManager.js";
 
+const shortIdCollator = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base"
+});
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -318,7 +323,12 @@ function getAmenitiesLine(listing) {
     { label: "Free Parking", icon: "🅿️", matches: ["free parking on premises", "free parking on street", "free parking"] }
   ];
 
-  const selected = [];
+  const selected = [
+    {
+      label: "FREE WIFI",
+      icon: "📶"
+    }
+  ];
 
   for (const highlight of highlights) {
     const isMatch = highlight.matches.some((match) => available.has(match));
@@ -332,7 +342,7 @@ function getAmenitiesLine(listing) {
       continue;
     }
 
-    if (selected.length >= 6) break;
+    if (selected.length >= 7) break;
 
     selected.push(highlight);
   }
@@ -436,16 +446,18 @@ function buildPost({ listing, savedProperty, gaps }) {
 
 function mergeListingWithSavedSettings(listing, savedProperties) {
   const listingId = getListingId(listing);
-  const shortId = getPropertyShortId(listing);
+  const listingShortId = getPropertyShortId(listing);
 
   const saved =
     savedProperties.find((item) => item.listingId === listingId) ||
     savedProperties.find((item) => item.listing_id === listingId) ||
     savedProperties.find((item) => item.propertyId === listingId) ||
     savedProperties.find((item) => item.property_id === listingId) ||
-    savedProperties.find((item) => item.shortId === shortId) ||
-    savedProperties.find((item) => item.short_id === shortId) ||
+    savedProperties.find((item) => item.shortId === listingShortId) ||
+    savedProperties.find((item) => item.short_id === listingShortId) ||
     {};
+
+  const shortId = saved.shortId || saved.short_id || listingShortId;
 
   return {
     listing,
@@ -528,7 +540,13 @@ async function generateSpecialsOnce() {
 
   const managedProperties = listings
     .map((listing) => mergeListingWithSavedSettings(listing, savedProperties))
-    .filter((property) => property.active);
+    .filter((property) => property.active)
+    .sort((a, b) =>
+      shortIdCollator.compare(
+        String(a.shortId || ""),
+        String(b.shortId || "")
+      )
+    );
 
   const propertyResults = [];
 
