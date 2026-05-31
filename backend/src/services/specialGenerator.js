@@ -520,7 +520,7 @@ function buildPost({ listing, savedProperty, gaps }) {
   return lines.join("\n").trim();
 }
 
-function buildOffSeasonPost({ listing, savedProperty }) {
+function buildOffSeasonPost({ listing, savedProperty, monthlyGaps }) {
   const listingId = getListingId(listing);
   const location = getLocation(listing, savedProperty);
   const factsLine = getFactsLine(listing);
@@ -539,8 +539,18 @@ function buildOffSeasonPost({ listing, savedProperty }) {
   if (amenitiesLine) lines.push(amenitiesLine);
   lines.push("");
   lines.push(`💵 ${monthlyRate}/month`);
-  lines.push(`📅 Available ${startDate} to ${endDate}`);
+  lines.push(`📅 Season: ${startDate} to ${endDate}`);
   lines.push("✅ ALL UTILITIES INCLUDED");
+  lines.push("");
+  lines.push("Available monthly periods:");
+  lines.push("");
+
+  for (const gap of monthlyGaps) {
+    lines.push(
+      `• ${formatOffSeasonDate(gap.startDate)} to ${formatOffSeasonDate(gap.endDate)} (${gap.nights} nights)`
+    );
+  }
+
   lines.push("");
   lines.push("Enjoy a comfortable extended coastal stay at a special monthly rate.");
   lines.push("");
@@ -554,6 +564,41 @@ function buildOffSeasonPost({ listing, savedProperty }) {
   }
 
   return lines.join("\n").trim();
+}
+
+async function scanOffSeasonProperty(property) {
+  const {
+    listing,
+    savedProperty,
+    listingId,
+    shortId
+  } = property;
+  const scanFrom = savedProperty.offSeasonStartDate;
+  const scanTo = savedProperty.offSeasonEndDate;
+
+  console.log(`Scanning off season ${shortId} ${listingId} ${scanFrom} to ${scanTo}`);
+
+  try {
+    const calendar = await getListingCalendar(listingId, scanFrom, scanTo);
+    const calendarDays = normalizeCalendarDays(calendar);
+    const monthlyGaps = findAvailableGaps(calendar, 30, 365);
+
+    return {
+      ...property,
+      monthlyGaps,
+      calendarDaysCount: calendarDays.length,
+      availableDaysCount: calendarDays.filter((day) => isAvailableCalendarDay(day)).length,
+      error: null
+    };
+  } catch (error) {
+    return {
+      ...property,
+      monthlyGaps: [],
+      calendarDaysCount: 0,
+      availableDaysCount: 0,
+      error: error.message || "Off season calendar scan failed"
+    };
+  }
 }
 
 function mergeListingWithSavedSettings(listing, savedProperties) {
@@ -748,19 +793,32 @@ async function generateOffSeasonRentalsOnce() {
   const listingsResponse = await getAllListings();
   const listings = normalizeListingsResponse(listingsResponse);
   const savedProperties = await getManagedPropertiesFromListings(listingsResponse);
-  const rentalPosts = listings
+  const configuredProperties = listings
     .map((listing) => mergeListingWithSavedSettings(listing, savedProperties))
     .filter((property) =>
       property.active &&
       property.savedProperty.offSeasonActive === true &&
-      Number(property.savedProperty.offSeasonMonthlyRate || 0) > 0
+      Number(property.savedProperty.offSeasonMonthlyRate || 0) > 0 &&
+      property.savedProperty.offSeasonStartDate &&
+      property.savedProperty.offSeasonEndDate
     )
     .sort((a, b) =>
       shortIdCollator.compare(
         String(a.shortId || ""),
         String(b.shortId || "")
       )
-    )
+    );
+  const results = [];
+
+  for (const property of configuredProperties) {
+    const result = await scanOffSeasonProperty(property);
+    results.push(result);
+
+    await sleep(500);
+  }
+
+  const rentalPosts = results
+    .filter((property) => property.monthlyGaps.length > 0)
     .map((property) => {
       const message = buildOffSeasonPost(property);
 
@@ -779,6 +837,7 @@ async function generateOffSeasonRentalsOnce() {
         monthlyRate: Number(property.savedProperty.offSeasonMonthlyRate || 0),
         startDate: property.savedProperty.offSeasonStartDate,
         endDate: property.savedProperty.offSeasonEndDate,
+        monthlyGaps: property.monthlyGaps,
         message,
         post: message
       };
@@ -786,8 +845,22 @@ async function generateOffSeasonRentalsOnce() {
 
   return {
     ok: true,
+    scannedProperties: configuredProperties.length,
     foundProperties: rentalPosts.length,
-    propertyPosts: rentalPosts
+    propertyPosts: rentalPosts,
+    results: results.map((result) => ({
+      listingId: result.listingId,
+      shortId: result.shortId,
+      propertyId: result.shortId,
+      title:
+        result.listing.title ||
+        result.listing.nickname ||
+        result.shortId,
+      monthlyGaps: result.monthlyGaps,
+      calendarDaysCount: result.calendarDaysCount,
+      availableDaysCount: result.availableDaysCount,
+      error: result.error
+    }))
   };
 }
 

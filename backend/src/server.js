@@ -971,7 +971,7 @@ app.get("/specials", (req, res) => {
             <h2>Off Season Rentals</h2>
             <p class="small">
               Monthly rental posts use the rates and dates saved in the Property Dashboard.
-              Default period is Oct 1 through the end of February.
+              Default period is Oct 1 through the end of February. A post is created when Guesty shows at least one continuous 30-night opening.
             </p>
           </div>
 
@@ -1334,13 +1334,15 @@ app.get("/specials", (req, res) => {
               : [];
 
             status.innerHTML =
-              '<div class="card">Found '
+              '<div class="card">Scanned '
+              + Number(data.scannedProperties || 0)
+              + ' configured properties. Found '
               + propertyPosts.length
-              + ' off season monthly rentals.</div>';
+              + ' off season rentals with at least one continuous 30-night opening.</div>';
 
             if (!propertyPosts.length) {
               results.innerHTML =
-                '<div class="card">No off season rentals enabled yet. Add monthly rates in the Property Dashboard.</div>';
+                '<div class="card">No configured properties currently have a continuous 30-night opening during their saved off-season period.</div>';
               return;
             }
 
