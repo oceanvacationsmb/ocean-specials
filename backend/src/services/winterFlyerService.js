@@ -134,7 +134,7 @@ export async function ensureOffSeasonFlyer({
     };
   }
 
-  const safeId = String(shortId || listingId || "property")
+  const safeId = `${shortId || "property"}-${String(listingId || "").slice(-6)}`
     .replace(/[^a-zA-Z0-9-_]/g, "-")
     .toLowerCase();
   const bedrooms = getBedrooms(listing);
