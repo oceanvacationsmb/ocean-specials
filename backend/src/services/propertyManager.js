@@ -186,6 +186,11 @@ async function getSavedSettings() {
 
 export async function getManagedProperties() {
   const data = await getAllListings();
+
+  return getManagedPropertiesFromListings(data);
+}
+
+export async function getManagedPropertiesFromListings(data) {
   const rawListings = getRawListings(data);
   const savedSettings = await getSavedSettings();
 

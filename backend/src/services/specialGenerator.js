@@ -4,7 +4,7 @@ import {
 } from "./guestyApi.js";
 
 import {
-  getManagedProperties
+  getManagedPropertiesFromListings
 } from "./propertyManager.js";
 
 function sleep(ms) {
@@ -53,11 +53,6 @@ function formatDate(date) {
     month: "short",
     day: "numeric"
   });
-}
-
-async function loadSavedProperties() {
-  const rows = await getManagedProperties();
-  return Array.isArray(rows) ? rows : [];
 }
 
 function normalizeListingsResponse(data) {
@@ -516,14 +511,20 @@ async function scanProperty(property, scanFrom, scanTo) {
   }
 }
 
-export async function generateSpecials() {
+let activeGenerationPromise = null;
+let cachedGenerationResult = null;
+let cachedGenerationExpiresAt = 0;
+
+const GENERATION_CACHE_MS = 60 * 1000;
+
+async function generateSpecialsOnce() {
   const scanFrom = getTodayPlusDays(2);
   const scanTo = addDays(scanFrom, 45);
 
   const listingsResponse = await getAllListings();
   const listings = normalizeListingsResponse(listingsResponse);
 
-  const savedProperties = await loadSavedProperties();
+  const savedProperties = await getManagedPropertiesFromListings(listingsResponse);
 
   const managedProperties = listings
     .map((listing) => mergeListingWithSavedSettings(listing, savedProperties))
@@ -587,4 +588,25 @@ export async function generateSpecials() {
     propertyPosts,
     results: propertyResults
   };
+}
+
+export async function generateSpecials() {
+  if (cachedGenerationResult && Date.now() < cachedGenerationExpiresAt) {
+    return cachedGenerationResult;
+  }
+
+  if (!activeGenerationPromise) {
+    activeGenerationPromise = generateSpecialsOnce()
+      .then((result) => {
+        cachedGenerationResult = result;
+        cachedGenerationExpiresAt = Date.now() + GENERATION_CACHE_MS;
+
+        return result;
+      })
+      .finally(() => {
+        activeGenerationPromise = null;
+      });
+  }
+
+  return activeGenerationPromise;
 }

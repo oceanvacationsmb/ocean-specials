@@ -469,7 +469,7 @@ app.put("/api/guesty-credentials", async (req, res) => {
       clientSecret
     });
 
-    resetGuestyToken();
+    await resetGuestyToken();
 
     res.json({
       ok: true
