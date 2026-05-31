@@ -360,7 +360,7 @@ function getAmenitiesLine(listing) {
     .join(" • ");
 }
 
-function getOffSeasonAmenitiesLine(listing) {
+function getOffSeasonAmenitiesLine(listing, shortId) {
   const available = getAvailableAmenities(listing);
   const highlights = [
     { label: "Hot Tub", icon: "♨️", matches: ["hot tub", "jacuzzi"] },
@@ -388,11 +388,29 @@ function getOffSeasonAmenitiesLine(listing) {
       icon: "📶"
     }
   ];
+  const normalizedShortId = String(shortId || "").trim();
+  const listingText = `${listing.title || ""} ${listing.nickname || ""}`.toLowerCase();
+  const hasPrivatePool =
+    available.has("private pool") ||
+    listingText.includes("private pool") ||
+    listingText.includes("pvt pool");
 
   if (beachMatches.some((match) => available.has(match))) {
     selected.push({
       label: "Close to the Beach",
       icon: "🏖️"
+    });
+  }
+
+  if (normalizedShortId === "2000" || normalizedShortId === "469") {
+    selected.push({
+      label: "Heated Indoor Pool",
+      icon: "🏊"
+    });
+  } else if (hasPrivatePool) {
+    selected.push({
+      label: "Private Pool (Not Heated)",
+      icon: "🏊"
     });
   }
 
@@ -524,11 +542,11 @@ function buildPost({ listing, savedProperty, gaps }) {
   return lines.join("\n").trim();
 }
 
-function buildOffSeasonPost({ listing, savedProperty, monthlyGaps }) {
+function buildOffSeasonPost({ listing, savedProperty, monthlyGaps, shortId }) {
   const listingId = getListingId(listing);
   const location = getLocation(listing, savedProperty);
   const factsLine = getFactsLine(listing);
-  const amenitiesLine = getOffSeasonAmenitiesLine(listing);
+  const amenitiesLine = getOffSeasonAmenitiesLine(listing, shortId);
   const flyerUrl = cleanText(savedProperty.offSeasonFlyerUrl);
   const airbnbUrl = cleanText(
     savedProperty.airbnbUrl ||
@@ -552,40 +570,38 @@ function buildOffSeasonPost({ listing, savedProperty, monthlyGaps }) {
   if (factsLine) lines.push(factsLine);
   if (amenitiesLine) lines.push(amenitiesLine);
   lines.push("");
+  lines.push("Enjoy a comfortable extended coastal stay at a special monthly rate.");
+  lines.push("");
+  lines.push(`📅 Season: ${startDate} to ${endDate} - One month minimum`);
   lines.push(`💵 ${monthlyRate}/month`);
-  lines.push(`📅 Season: ${startDate} to ${endDate}`);
   lines.push("✅ ALL UTILITIES INCLUDED");
   lines.push("");
   lines.push("Available monthly periods:");
-  lines.push("");
 
   for (const gap of monthlyGaps) {
     lines.push(
-      `• ${formatOffSeasonDate(gap.startDate)} to ${formatOffSeasonDate(gap.endDate)} (${gap.nights} nights)`
+      `• ${formatOffSeasonDate(gap.startDate)} to ${formatOffSeasonDate(gap.endDate)}`
     );
   }
 
   lines.push("");
-  lines.push("Enjoy a comfortable extended coastal stay at a special monthly rate.");
-  lines.push("");
-  lines.push("Book direct or ask about monthly availability:");
-  lines.push(directUrl);
-  lines.push("");
 
   if (airbnbUrl) {
-    lines.push("Airbnb:");
     lines.push(airbnbUrl);
     lines.push("");
   }
 
   if (vrboUrl) {
-    lines.push("VRBO:");
     lines.push(vrboUrl);
     lines.push("");
   }
 
+  lines.push("Book direct or ask about monthly availability:");
+  lines.push(directUrl);
+  lines.push("");
+
   if (flyerUrl) {
-    lines.push("Winter Special Flyer:");
+    lines.push("flyer:");
     lines.push(flyerUrl);
   }
 
