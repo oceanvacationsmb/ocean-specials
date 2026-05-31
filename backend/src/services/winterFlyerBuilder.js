@@ -4,7 +4,7 @@ import path from "path";
 import sharp from "sharp";
 
 const WIDTH = 1080;
-const HEIGHT = 1350;
+const HEIGHT = 1380;
 const HERO_HEIGHT = 585;
 
 const COLORS = {
@@ -203,12 +203,12 @@ function buildOverlaySvg(flyer) {
         const x = 56 + index * (width + gap);
 
         return `
-          <rect x="${x}" y="1240" width="${width}" height="42" rx="21" fill="${COLORS.navy}"/>
-          <text x="${x + width / 2}" y="1267" text-anchor="middle" font-size="${isLastMinute ? 17 : 15}" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">${escapeXml(label)}</text>
+          <rect x="${x}" y="1256" width="${width}" height="42" rx="21" fill="${COLORS.navy}"/>
+          <text x="${x + width / 2}" y="1283" text-anchor="middle" font-size="${isLastMinute ? 17 : 15}" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">${escapeXml(label)}</text>
         `;
       }).join("")}
-      <text x="56" y="1305" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.muted}">${escapeXml(poolNote)}</text>
-      <text x="540" y="1332" text-anchor="middle" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">OCEANVACATIONSMB.COM</text>
+      <text x="56" y="1321" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.muted}">${escapeXml(poolNote)}</text>
+      <text x="540" y="1362" text-anchor="middle" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">OCEANVACATIONSMB.COM</text>
     </svg>
   `;
 }
