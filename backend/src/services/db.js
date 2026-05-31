@@ -58,8 +58,8 @@ export async function ensurePropertySettingsTable() {
       vrbo_url TEXT,
       flyer_image_url TEXT,
       min_nights INTEGER DEFAULT 1,
-      max_nights INTEGER DEFAULT 30,
-      scan_days INTEGER DEFAULT 15,
+      max_nights INTEGER DEFAULT 45,
+      scan_days INTEGER DEFAULT 45,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
@@ -71,8 +71,8 @@ export async function ensurePropertySettingsTable() {
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS vrbo_url TEXT;`);
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS flyer_image_url TEXT;`);
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS min_nights INTEGER DEFAULT 1;`);
-  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS max_nights INTEGER DEFAULT 30;`);
-  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS scan_days INTEGER DEFAULT 15;`);
+  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS max_nights INTEGER DEFAULT 45;`);
+  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS scan_days INTEGER DEFAULT 45;`);
 
   return true;
 }

@@ -15,7 +15,7 @@ export const properties = [
 
     minNights: 2,
     maxNights: 7,
-    scanDays: 30,
+    scanDays: 45,
     active: true
   }
 ];

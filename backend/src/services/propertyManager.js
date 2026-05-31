@@ -168,8 +168,8 @@ async function getSavedSettingsFromDatabase() {
       vrboUrl: row.vrbo_url || "",
       flyerImageUrl: row.flyer_image_url || "",
       minNights: Number(row.min_nights || 1),
-      maxNights: Number(row.max_nights || 30),
-      scanDays: Number(row.scan_days || 15)
+      maxNights: Number(row.max_nights || 45),
+      scanDays: Number(row.scan_days || 45)
     };
   }
 
@@ -215,8 +215,8 @@ export async function getManagedProperties() {
       flyerImageUrl: saved.flyerImageUrl || "",
 
       minNights: Number(saved.minNights ?? 1),
-      maxNights: Number(saved.maxNights ?? 30),
-      scanDays: Number(saved.scanDays ?? 15)
+      maxNights: Number(saved.maxNights ?? 45),
+      scanDays: Number(saved.scanDays ?? 45)
     };
   });
 }
@@ -229,8 +229,8 @@ export async function saveManagedProperty(listingId, data) {
     vrboUrl: data.vrboUrl || "",
     flyerImageUrl: data.flyerImageUrl || "",
     minNights: Number(data.minNights ?? 1),
-    maxNights: Number(data.maxNights ?? 30),
-    scanDays: Number(data.scanDays ?? 15)
+    maxNights: Number(data.maxNights ?? 45),
+    scanDays: Number(data.scanDays ?? 45)
   };
 
   if (getPool()) {

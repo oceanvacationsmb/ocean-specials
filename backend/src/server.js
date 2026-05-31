@@ -49,7 +49,7 @@ const DEFAULT_FACEBOOK_GROUPS = [
 
 function getScanOptions(req) {
   return {
-    days: req.query.days || req.body?.days || 60
+    days: req.query.days || req.body?.days || 45
   };
 }
 
@@ -298,7 +298,7 @@ app.get("/api/guesty/calendar-test", async (req, res) => {
 
     const to =
       req.query.to ||
-      new Date(today.getTime() + 17 * 24 * 60 * 60 * 1000)
+      new Date(today.getTime() + 47 * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10);
 
@@ -517,7 +517,7 @@ app.get("/properties", (req, res) => {
           <h2>Property Dashboard</h2>
           <p class="small">
             Guesty supplies the property title, bedrooms, bathrooms, sleeps, city, and main photo automatically.
-            Add Airbnb, VRBO, and Cloudinary flyer URL only.
+            Add Airbnb and VRBO URLs only.
           </p>
 
           <div class="row">
@@ -701,10 +701,9 @@ app.get("/properties", (req, res) => {
               active: getChecked("active-" + listingId),
               airbnbUrl: getValue("airbnbUrl-" + listingId),
               vrboUrl: getValue("vrboUrl-" + listingId),
-              flyerImageUrl: getValue("flyerImageUrl-" + listingId),
               minNights: 1,
-              maxNights: 60,
-              scanDays: 60
+              maxNights: 45,
+              scanDays: 45
             };
           }
 
@@ -795,7 +794,7 @@ app.get("/properties", (req, res) => {
 
               + '    <div>'
               + '      <label>Scan Days Per Property</label>'
-              + '      <input id="scanDays-' + escapeHtml(id) + '" type="number" value="60" readonly />'
+              + '      <input id="scanDays-' + escapeHtml(id) + '" type="number" value="45" readonly />'
               + '    </div>'
               + '  </div>'
 
@@ -809,7 +808,7 @@ app.get("/properties", (req, res) => {
 
               + '    <div>'
               + '      <label>Max Nights</label>'
-              + '      <input id="maxNights-' + escapeHtml(id) + '" type="number" value="60" readonly />'
+              + '      <input id="maxNights-' + escapeHtml(id) + '" type="number" value="45" readonly />'
               + '    </div>'
               + '  </div>'
 
@@ -825,13 +824,6 @@ app.get("/properties", (req, res) => {
               + '      <label>VRBO URL</label>'
               + '      <input id="vrboUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.vrboUrl || "") + '" placeholder="https://www.vrbo.com/..." />'
               + '    </div>'
-              + '  </div>'
-
-              + '  <br />'
-
-              + '  <div>'
-              + '    <label>Flyer Image URL from Cloudinary</label>'
-              + '    <input id="flyerImageUrl-' + escapeHtml(id) + '" value="' + escapeHtml(property.flyerImageUrl || "") + '" placeholder="https://res.cloudinary.com/.../image/upload/..." />'
               + '  </div>'
 
               + '  <br />'
@@ -880,14 +872,14 @@ app.get("/specials", (req, res) => {
         <div class="card">
           <h2>Generate Specials</h2>
           <p class="small">
-            Specials scan automatically when this page opens. Default is 60 days starting 2 days from today.
+            Specials scan automatically when this page opens. Default is 45 days starting 2 days from today.
           </p>
 
           <div class="small">
-            Period: Today + 2 days through the next 60 days
+            Period: Today + 2 days through the next 45 days
           </div>
 
-          <input id="scanDays" type="hidden" value="60" />
+          <input id="scanDays" type="hidden" value="45" />
         </div>
 
         <div id="status"></div>

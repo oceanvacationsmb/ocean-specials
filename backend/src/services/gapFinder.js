@@ -61,7 +61,7 @@ function isDayAvailable(day) {
   return false;
 }
 
-export function findAvailableGaps(calendarDays, minNights = 1, maxNights = 30) {
+export function findAvailableGaps(calendarDays, minNights = 1, maxNights = 45) {
   const gaps = [];
   let gapStart = null;
   let lastAvailableDate = null;

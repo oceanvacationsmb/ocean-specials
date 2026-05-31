@@ -189,7 +189,7 @@ function isAvailableCalendarDay(day) {
   return false;
 }
 
-function findAvailableGaps(calendarData, minNights = 1, maxNights = 60) {
+function findAvailableGaps(calendarData, minNights = 1, maxNights = 45) {
   const calendarDays = normalizeCalendarDays(calendarData)
     .map((day) => ({
       ...day,
@@ -418,7 +418,7 @@ async function scanProperty(property, scanFrom, scanTo) {
   try {
     const calendar = await getListingCalendar(listingId, scanFrom, scanTo);
     const calendarDays = normalizeCalendarDays(calendar);
-    const gaps = findAvailableGaps(calendar, 1, 60);
+    const gaps = findAvailableGaps(calendar, 1, 45);
 
     return {
       listingId,
@@ -462,7 +462,7 @@ async function scanProperty(property, scanFrom, scanTo) {
 
 export async function generateSpecials() {
   const scanFrom = getTodayPlusDays(2);
-  const scanTo = addDays(scanFrom, 60);
+  const scanTo = addDays(scanFrom, 45);
 
   const listingsResponse = await getAllListings();
   const listings = normalizeListingsResponse(listingsResponse);
@@ -503,7 +503,7 @@ export async function generateSpecials() {
     scan: {
       from: scanFrom,
       to: scanTo,
-      days: 60
+      days: 45
     },
 
     period: {
@@ -523,7 +523,7 @@ export async function generateSpecials() {
 
     scanFrom,
     scanTo,
-    scanDays: 60,
+    scanDays: 45,
 
     totalProperties: managedProperties.length,
     foundProperties: propertyPosts.length,
