@@ -31,6 +31,7 @@ const TOKEN_EXPIRY_SETTING_KEY = "guesty_booking_access_token_expires_at";
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const REQUEST_SPACING_MS = 300;
 const MAX_REQUEST_RETRIES = 4;
+const MAX_RETRY_WAIT_MS = 30 * 1000;
 const LISTINGS_CACHE_MS = 60 * 1000;
 
 export async function resetGuestyToken() {
@@ -175,8 +176,16 @@ async function getNewToken(attempt = 0) {
       }
     );
   } catch (error) {
-    if (error.response?.status === 429 && attempt < 1) {
-      await sleep(getRetryAfterMs(error, attempt));
+    if (error.response?.status === 429) {
+      const retryAfterMs = getRetryAfterMs(error, attempt);
+
+      if (retryAfterMs > MAX_RETRY_WAIT_MS || attempt >= 1) {
+        throw new Error(
+          `Guesty token renewal is temporarily limited. Try again in ${Math.ceil(retryAfterMs / 1000)} seconds.`
+        );
+      }
+
+      await sleep(retryAfterMs);
       return getNewToken(attempt + 1);
     }
 
@@ -253,8 +262,20 @@ async function guestyRequest(config) {
         error.response?.status === 429 &&
         attempt < MAX_REQUEST_RETRIES
       ) {
-        await sleep(getRetryAfterMs(error, attempt));
+        const retryAfterMs = getRetryAfterMs(error, attempt);
+
+        if (retryAfterMs > MAX_RETRY_WAIT_MS) {
+          throw new Error(
+            `Guesty request limit reached. Try again in ${Math.ceil(retryAfterMs / 1000)} seconds.`
+          );
+        }
+
+        await sleep(retryAfterMs);
         continue;
+      }
+
+      if (!error.response && error.message) {
+        throw new Error(error.message);
       }
 
       const details = error.response?.data
