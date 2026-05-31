@@ -147,6 +147,32 @@ function getLastDayOfFebruary(year) {
   return new Date(Date.UTC(year, 2, 0)).toISOString().slice(0, 10);
 }
 
+function getMonthValue(value) {
+  return String(value || "").slice(0, 7);
+}
+
+function getFirstDayOfMonth(value, fallback) {
+  const monthValue = getMonthValue(value || fallback);
+
+  if (!/^\d{4}-\d{2}$/.test(monthValue)) {
+    return fallback;
+  }
+
+  return `${monthValue}-01`;
+}
+
+function getLastDayOfMonth(value, fallback) {
+  const monthValue = getMonthValue(value || fallback);
+
+  if (!/^\d{4}-\d{2}$/.test(monthValue)) {
+    return fallback;
+  }
+
+  const [year, month] = monthValue.split("-").map(Number);
+
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+}
+
 function getDefaultOffSeasonPeriod(now = new Date()) {
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth();
@@ -268,7 +294,13 @@ export async function getManagedPropertiesFromListings(data) {
         offSeasonStartDate:
           saved.offSeasonStartDate || defaultOffSeasonPeriod.startDate,
         offSeasonEndDate:
+          saved.offSeasonEndDate || defaultOffSeasonPeriod.endDate,
+        offSeasonStartMonth: getMonthValue(
+          saved.offSeasonStartDate || defaultOffSeasonPeriod.startDate
+        ),
+        offSeasonEndMonth: getMonthValue(
           saved.offSeasonEndDate || defaultOffSeasonPeriod.endDate
+        )
       };
     })
     .sort(comparePropertiesByShortId);
@@ -287,10 +319,14 @@ export async function saveManagedProperty(listingId, data) {
     scanDays: Number(data.scanDays ?? 45),
     offSeasonActive: data.offSeasonActive === true,
     offSeasonMonthlyRate: Number(data.offSeasonMonthlyRate || 0),
-    offSeasonStartDate:
-      data.offSeasonStartDate || defaultOffSeasonPeriod.startDate,
-    offSeasonEndDate:
-      data.offSeasonEndDate || defaultOffSeasonPeriod.endDate
+    offSeasonStartDate: getFirstDayOfMonth(
+      data.offSeasonStartMonth || data.offSeasonStartDate,
+      defaultOffSeasonPeriod.startDate
+    ),
+    offSeasonEndDate: getLastDayOfMonth(
+      data.offSeasonEndMonth || data.offSeasonEndDate,
+      defaultOffSeasonPeriod.endDate
+    )
   };
 
   if (getPool()) {

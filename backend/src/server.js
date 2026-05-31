@@ -745,8 +745,8 @@ app.get("/properties", (req, res) => {
               scanDays: 45,
               offSeasonActive: getChecked("offSeasonActive-" + listingId),
               offSeasonMonthlyRate: getValue("offSeasonMonthlyRate-" + listingId),
-              offSeasonStartDate: getValue("offSeasonStartDate-" + listingId),
-              offSeasonEndDate: getValue("offSeasonEndDate-" + listingId)
+              offSeasonStartMonth: getValue("offSeasonStartMonth-" + listingId),
+              offSeasonEndMonth: getValue("offSeasonEndMonth-" + listingId)
             };
           }
 
@@ -884,18 +884,18 @@ app.get("/properties", (req, res) => {
               + '      </div>'
               + '      <div>'
               + '        <label>Season Period</label>'
-              + '        <div class="small">Default: Oct 1 through the end of February</div>'
+              + '        <div class="small">The start month begins on day 1. The end month includes its final day.</div>'
               + '      </div>'
               + '    </div>'
               + '    <br />'
               + '    <div class="grid">'
               + '      <div>'
-              + '        <label>Start Date</label>'
-              + '        <input id="offSeasonStartDate-' + escapeHtml(id) + '" type="date" value="' + escapeHtml(property.offSeasonStartDate || "") + '" />'
+              + '        <label>Start Month</label>'
+              + '        <input id="offSeasonStartMonth-' + escapeHtml(id) + '" type="month" value="' + escapeHtml(property.offSeasonStartMonth || "") + '" />'
               + '      </div>'
               + '      <div>'
-              + '        <label>End Date</label>'
-              + '        <input id="offSeasonEndDate-' + escapeHtml(id) + '" type="date" value="' + escapeHtml(property.offSeasonEndDate || "") + '" />'
+              + '        <label>End Month</label>'
+              + '        <input id="offSeasonEndMonth-' + escapeHtml(id) + '" type="month" value="' + escapeHtml(property.offSeasonEndMonth || "") + '" />'
               + '      </div>'
               + '    </div>'
               + '  </div>'
