@@ -15,6 +15,12 @@ let accessToken = null;
 let tokenExpiresAt = 0;
 let tokenPromise = null;
 
+export function resetGuestyToken() {
+  accessToken = null;
+  tokenExpiresAt = 0;
+  tokenPromise = null;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

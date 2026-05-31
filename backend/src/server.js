@@ -5,7 +5,8 @@ import dotenv from "dotenv";
 import {
   testGuestyConnection,
   getListingCalendar,
-  getAllListings
+  getAllListings,
+  resetGuestyToken
 } from "./services/guestyApi.js";
 
 import {
@@ -19,6 +20,11 @@ import {
   getAppSetting,
   setAppSetting
 } from "./services/db.js";
+
+import {
+  isValidDashboardAdminKey,
+  updateRenderGuestyCredentials
+} from "./services/renderService.js";
 
 dotenv.config();
 
@@ -439,6 +445,43 @@ app.put("/api/facebook-groups", async (req, res) => {
   }
 });
 
+app.put("/api/guesty-credentials", async (req, res) => {
+  try {
+    if (!isValidDashboardAdminKey(req.headers["x-dashboard-admin-key"])) {
+      return res.status(401).json({
+        ok: false,
+        error: "Invalid dashboard access key"
+      });
+    }
+
+    const clientId = String(req.body?.clientId || "").trim();
+    const clientSecret = String(req.body?.clientSecret || "").trim();
+
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({
+        ok: false,
+        error: "Both Guesty credentials are required"
+      });
+    }
+
+    await updateRenderGuestyCredentials({
+      clientId,
+      clientSecret
+    });
+
+    resetGuestyToken();
+
+    res.json({
+      ok: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
 app.get("/api/specials/generate", async (req, res) => {
   try {
     const result = await generateSpecials([], getScanOptions(req));
@@ -484,6 +527,66 @@ app.get("/properties", (req, res) => {
           </div>
         </div>
 
+        <details class="card">
+          <summary style="font-weight:800; cursor:pointer;">Facebook Groups Dashboard</summary>
+
+          <br />
+
+          <p class="small">
+            Add, delete, or edit group links here. One group link per line. Saved on the server.
+          </p>
+
+          <textarea
+            id="facebookGroups"
+            style="min-height: 190px;"
+            placeholder="Paste Facebook group links here, one per line"
+          ></textarea>
+
+          <br />
+          <br />
+
+          <div class="row">
+            <button onclick="saveFacebookGroups()">Save Facebook Groups</button>
+            <span id="facebookGroupsStatus"></span>
+          </div>
+        </details>
+
+        <details class="card">
+          <summary style="font-weight:800; cursor:pointer;">Guesty Key Settings</summary>
+
+          <br />
+
+          <p class="small">
+            Update the two Guesty credentials stored in Render. Existing keys are never displayed.
+          </p>
+
+          <div class="grid">
+            <div>
+              <label>Guesty Client ID</label>
+              <input id="guestyClientId" type="password" autocomplete="off" />
+            </div>
+
+            <div>
+              <label>Guesty Client Secret</label>
+              <input id="guestyClientSecret" type="password" autocomplete="off" />
+            </div>
+          </div>
+
+          <br />
+
+          <div>
+            <label>Dashboard Access Key</label>
+            <input id="dashboardAdminKey" type="password" autocomplete="off" />
+          </div>
+
+          <br />
+
+          <div class="row">
+            <button onclick="saveGuestyCredentials()">Update Guesty Keys in Render</button>
+            <span id="guestyCredentialsStatus"></span>
+          </div>
+        </details>
+
         <div id="status"></div>
         <div id="properties"></div>
 
@@ -507,6 +610,88 @@ app.get("/properties", (req, res) => {
           function getChecked(id) {
             const el = document.getElementById(id);
             return el ? el.checked : false;
+          }
+
+          async function loadFacebookGroups() {
+            const box = document.getElementById("facebookGroups");
+            const status = document.getElementById("facebookGroupsStatus");
+
+            status.innerHTML = '<span class="small">Loading...</span>';
+
+            const response = await fetch("/api/facebook-groups");
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Failed to load groups") + '</span>';
+              return;
+            }
+
+            box.value = data.groups || "";
+            status.innerHTML = '<span class="success">Loaded</span>';
+          }
+
+          async function saveFacebookGroups() {
+            const box = document.getElementById("facebookGroups");
+            const status = document.getElementById("facebookGroupsStatus");
+
+            status.innerHTML = '<span class="small">Saving...</span>';
+
+            const response = await fetch("/api/facebook-groups", {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                groups: box.value || ""
+              })
+            });
+
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Failed to save groups") + '</span>';
+              return;
+            }
+
+            box.value = data.groups || "";
+            status.innerHTML = '<span class="success">Saved</span>';
+          }
+
+          async function saveGuestyCredentials() {
+            const status = document.getElementById("guestyCredentialsStatus");
+            const clientId = getValue("guestyClientId");
+            const clientSecret = getValue("guestyClientSecret");
+            const dashboardAdminKey = getValue("dashboardAdminKey");
+
+            if (!clientId || !clientSecret || !dashboardAdminKey) {
+              status.innerHTML = '<span class="error">Enter both Guesty keys and the dashboard access key.</span>';
+              return;
+            }
+
+            status.innerHTML = '<span class="small">Updating Render...</span>';
+
+            const response = await fetch("/api/guesty-credentials", {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                "x-dashboard-admin-key": dashboardAdminKey
+              },
+              body: JSON.stringify({
+                clientId,
+                clientSecret
+              })
+            });
+
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Failed to update Guesty keys") + '</span>';
+              return;
+            }
+
+            document.getElementById("guestyClientId").value = "";
+            document.getElementById("guestyClientSecret").value = "";
+            status.innerHTML = '<span class="success">Guesty keys updated in Render.</span>';
           }
 
           function buildPropertyBody(listingId) {
@@ -679,6 +864,7 @@ app.get("/properties", (req, res) => {
             container.innerHTML = CURRENT_PROPERTIES.map(renderProperty).join("");
           }
 
+          loadFacebookGroups();
           loadProperties();
         </script>
       `
@@ -703,30 +889,6 @@ app.get("/specials", (req, res) => {
 
           <input id="scanDays" type="hidden" value="60" />
         </div>
-
-        <details class="card">
-          <summary style="font-weight:800; cursor:pointer;">Facebook Groups Dashboard</summary>
-
-          <br />
-
-          <p class="small">
-            Add, delete, or edit group links here. One group link per line. Saved on the server.
-          </p>
-
-          <textarea
-            id="facebookGroups"
-            style="min-height: 190px;"
-            placeholder="Paste Facebook group links here, one per line"
-          ></textarea>
-
-          <br />
-          <br />
-
-          <div class="row">
-            <button onclick="saveFacebookGroups()">Save Facebook Groups</button>
-            <span id="facebookGroupsStatus"></span>
-          </div>
-        </details>
 
         <div id="status"></div>
         <div id="results"></div>
@@ -805,54 +967,15 @@ app.get("/specials", (req, res) => {
           }
 
           async function loadFacebookGroups() {
-            const box = document.getElementById("facebookGroups");
-            const status = document.getElementById("facebookGroupsStatus");
-
-            status.innerHTML = '<span class="small">Loading...</span>';
-
             const response = await fetch("/api/facebook-groups");
             const data = await response.json();
 
             if (!data.ok) {
-              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Failed to load groups") + '</span>';
+              SERVER_FACEBOOK_GROUPS = "";
               return;
             }
 
             SERVER_FACEBOOK_GROUPS = data.groups || "";
-            box.value = SERVER_FACEBOOK_GROUPS;
-
-            status.innerHTML = '<span class="success">Loaded</span>';
-          }
-
-          async function saveFacebookGroups() {
-            const box = document.getElementById("facebookGroups");
-            const status = document.getElementById("facebookGroupsStatus");
-
-            const groups = box.value || "";
-
-            status.innerHTML = '<span class="small">Saving...</span>';
-
-            const response = await fetch("/api/facebook-groups", {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                groups
-              })
-            });
-
-            const data = await response.json();
-
-            if (!data.ok) {
-              status.innerHTML = '<span class="error">' + escapeHtml(data.error || "Failed to save groups") + '</span>';
-              return;
-            }
-
-            SERVER_FACEBOOK_GROUPS = data.groups || "";
-            box.value = SERVER_FACEBOOK_GROUPS;
-
-            status.innerHTML = '<span class="success">Saved</span>';
           }
 
           async function copyText(id) {
