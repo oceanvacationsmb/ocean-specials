@@ -60,6 +60,10 @@ export async function ensurePropertySettingsTable() {
       min_nights INTEGER DEFAULT 1,
       max_nights INTEGER DEFAULT 45,
       scan_days INTEGER DEFAULT 45,
+      off_season_active BOOLEAN DEFAULT FALSE,
+      off_season_monthly_rate NUMERIC(10, 2),
+      off_season_start_date DATE,
+      off_season_end_date DATE,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
@@ -73,6 +77,10 @@ export async function ensurePropertySettingsTable() {
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS min_nights INTEGER DEFAULT 1;`);
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS max_nights INTEGER DEFAULT 45;`);
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS scan_days INTEGER DEFAULT 45;`);
+  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_active BOOLEAN DEFAULT FALSE;`);
+  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_monthly_rate NUMERIC(10, 2);`);
+  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_start_date DATE;`);
+  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_end_date DATE;`);
 
   return true;
 }

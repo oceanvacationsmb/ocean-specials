@@ -143,6 +143,22 @@ function comparePropertiesByShortId(a, b) {
   );
 }
 
+function getLastDayOfFebruary(year) {
+  return new Date(Date.UTC(year, 2, 0)).toISOString().slice(0, 10);
+}
+
+function getDefaultOffSeasonPeriod(now = new Date()) {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const startYear = month <= 1 ? year - 1 : year;
+  const endYear = startYear + 1;
+
+  return {
+    startDate: `${startYear}-10-01`,
+    endDate: getLastDayOfFebruary(endYear)
+  };
+}
+
 async function readJsonFallbackConfig() {
   try {
     const text = await fs.readFile(CONFIG_PATH, "utf8");
@@ -165,7 +181,11 @@ async function getSavedSettingsFromDatabase() {
       flyer_image_url,
       min_nights,
       max_nights,
-      scan_days
+      scan_days,
+      off_season_active,
+      off_season_monthly_rate,
+      off_season_start_date,
+      off_season_end_date
     FROM property_settings
   `);
 
@@ -180,7 +200,15 @@ async function getSavedSettingsFromDatabase() {
       flyerImageUrl: row.flyer_image_url || "",
       minNights: Number(row.min_nights || 1),
       maxNights: Number(row.max_nights || 45),
-      scanDays: Number(row.scan_days || 45)
+      scanDays: Number(row.scan_days || 45),
+      offSeasonActive: row.off_season_active === true,
+      offSeasonMonthlyRate: Number(row.off_season_monthly_rate || 0),
+      offSeasonStartDate: row.off_season_start_date
+        ? String(row.off_season_start_date).slice(0, 10)
+        : "",
+      offSeasonEndDate: row.off_season_end_date
+        ? String(row.off_season_end_date).slice(0, 10)
+        : ""
     };
   }
 
@@ -204,6 +232,7 @@ export async function getManagedProperties() {
 export async function getManagedPropertiesFromListings(data) {
   const rawListings = getRawListings(data);
   const savedSettings = await getSavedSettings();
+  const defaultOffSeasonPeriod = getDefaultOffSeasonPeriod();
 
   return rawListings
     .map((listing) => {
@@ -233,13 +262,20 @@ export async function getManagedPropertiesFromListings(data) {
 
         minNights: Number(saved.minNights ?? 1),
         maxNights: Number(saved.maxNights ?? 45),
-        scanDays: Number(saved.scanDays ?? 45)
+        scanDays: Number(saved.scanDays ?? 45),
+        offSeasonActive: saved.offSeasonActive === true,
+        offSeasonMonthlyRate: Number(saved.offSeasonMonthlyRate || 0),
+        offSeasonStartDate:
+          saved.offSeasonStartDate || defaultOffSeasonPeriod.startDate,
+        offSeasonEndDate:
+          saved.offSeasonEndDate || defaultOffSeasonPeriod.endDate
       };
     })
     .sort(comparePropertiesByShortId);
 }
 
 export async function saveManagedProperty(listingId, data) {
+  const defaultOffSeasonPeriod = getDefaultOffSeasonPeriod();
   const savedData = {
     shortId: data.shortId || "",
     active: data.active !== false,
@@ -248,7 +284,13 @@ export async function saveManagedProperty(listingId, data) {
     flyerImageUrl: data.flyerImageUrl || "",
     minNights: Number(data.minNights ?? 1),
     maxNights: Number(data.maxNights ?? 45),
-    scanDays: Number(data.scanDays ?? 45)
+    scanDays: Number(data.scanDays ?? 45),
+    offSeasonActive: data.offSeasonActive === true,
+    offSeasonMonthlyRate: Number(data.offSeasonMonthlyRate || 0),
+    offSeasonStartDate:
+      data.offSeasonStartDate || defaultOffSeasonPeriod.startDate,
+    offSeasonEndDate:
+      data.offSeasonEndDate || defaultOffSeasonPeriod.endDate
   };
 
   if (getPool()) {
@@ -266,9 +308,13 @@ export async function saveManagedProperty(listingId, data) {
           min_nights,
           max_nights,
           scan_days,
+          off_season_active,
+          off_season_monthly_rate,
+          off_season_start_date,
+          off_season_end_date,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
         ON CONFLICT (listing_id)
         DO UPDATE SET
           short_id = EXCLUDED.short_id,
@@ -279,6 +325,10 @@ export async function saveManagedProperty(listingId, data) {
           min_nights = EXCLUDED.min_nights,
           max_nights = EXCLUDED.max_nights,
           scan_days = EXCLUDED.scan_days,
+          off_season_active = EXCLUDED.off_season_active,
+          off_season_monthly_rate = EXCLUDED.off_season_monthly_rate,
+          off_season_start_date = EXCLUDED.off_season_start_date,
+          off_season_end_date = EXCLUDED.off_season_end_date,
           updated_at = NOW()
       `,
       [
@@ -290,7 +340,11 @@ export async function saveManagedProperty(listingId, data) {
         savedData.flyerImageUrl,
         savedData.minNights,
         savedData.maxNights,
-        savedData.scanDays
+        savedData.scanDays,
+        savedData.offSeasonActive,
+        savedData.offSeasonMonthlyRate,
+        savedData.offSeasonStartDate,
+        savedData.offSeasonEndDate
       ]
     );
 

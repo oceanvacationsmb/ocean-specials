@@ -294,9 +294,9 @@ function getFactsLine(listing) {
   return facts.join(" • ");
 }
 
-function getAmenitiesLine(listing) {
+function getAvailableAmenities(listing) {
   const values = Array.isArray(listing.amenities) ? listing.amenities : [];
-  const available = new Set(
+  return new Set(
     values
       .map((value) =>
         cleanText(
@@ -307,6 +307,10 @@ function getAmenitiesLine(listing) {
       )
       .filter(Boolean)
   );
+}
+
+function getAmenitiesLine(listing) {
+  const available = getAvailableAmenities(listing);
 
   const highlights = [
     { label: "Private Pool", icon: "🏊", matches: ["private pool"] },
@@ -352,8 +356,80 @@ function getAmenitiesLine(listing) {
     .join(" • ");
 }
 
+function getOffSeasonAmenitiesLine(listing) {
+  const available = getAvailableAmenities(listing);
+  const highlights = [
+    { label: "Hot Tub", icon: "♨️", matches: ["hot tub", "jacuzzi"] },
+    { label: "Ping-Pong Table", icon: "🏓", matches: ["ping pong table", "ping-pong table", "table tennis"] },
+    { label: "Pool Table", icon: "🎱", matches: ["pool table", "billiards"] },
+    { label: "Game Room", icon: "🎮", matches: ["game room", "games room"] },
+    { label: "Ocean View", icon: "🌅", matches: ["ocean view", "sea view", "beach view", "water view"] },
+    { label: "BBQ Grill", icon: "🔥", matches: ["bbq grill", "barbecue grill"] },
+    { label: "Elevator", icon: "🛗", matches: ["elevator"] },
+    { label: "Free Parking", icon: "🅿️", matches: ["free parking on premises", "free parking on street", "free parking"] }
+  ];
+  const beachMatches = [
+    "beach",
+    "beach access",
+    "beach front",
+    "beachfront",
+    "near ocean",
+    "ocean front",
+    "oceanfront",
+    "waterfront"
+  ];
+  const selected = [
+    {
+      label: "FREE WIFI",
+      icon: "📶"
+    }
+  ];
+
+  if (beachMatches.some((match) => available.has(match))) {
+    selected.push({
+      label: "Close to the Beach",
+      icon: "🏖️"
+    });
+  }
+
+  for (const highlight of highlights) {
+    const isMatch = highlight.matches.some((match) => available.has(match));
+
+    if (!isMatch) continue;
+    if (selected.length >= 7) break;
+
+    selected.push(highlight);
+  }
+
+  return selected
+    .map((item) => `${item.icon} ${item.label}`)
+    .join(" • ");
+}
+
 function makeDirectUrl(listingId) {
   return `https://oceanvacationsmb.guestybookings.com/properties/${listingId}`;
+}
+
+function formatOffSeasonDate(value) {
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
+function formatMonthlyRate(value) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
 }
 
 function formatGapTitle(gap) {
@@ -433,6 +509,42 @@ function buildPost({ listing, savedProperty, gaps }) {
   }
 
   lines.push("Book direct and save up to 20%:");
+  lines.push(directUrl);
+  lines.push("");
+
+  if (imageUrl) {
+    lines.push("Image:");
+    lines.push(imageUrl);
+  }
+
+  return lines.join("\n").trim();
+}
+
+function buildOffSeasonPost({ listing, savedProperty }) {
+  const listingId = getListingId(listing);
+  const location = getLocation(listing, savedProperty);
+  const factsLine = getFactsLine(listing);
+  const amenitiesLine = getOffSeasonAmenitiesLine(listing);
+  const imageUrl = getListingImageUrl(listing);
+  const directUrl =
+    cleanText(savedProperty.directUrl || savedProperty.direct_url) ||
+    makeDirectUrl(listingId);
+  const monthlyRate = formatMonthlyRate(savedProperty.offSeasonMonthlyRate);
+  const startDate = formatOffSeasonDate(savedProperty.offSeasonStartDate);
+  const endDate = formatOffSeasonDate(savedProperty.offSeasonEndDate);
+  const lines = [];
+
+  lines.push(`🍂 OFF SEASON MONTHLY RENTAL IN ${location.toUpperCase()} 🍂`);
+  if (factsLine) lines.push(factsLine);
+  if (amenitiesLine) lines.push(amenitiesLine);
+  lines.push("");
+  lines.push(`💵 ${monthlyRate}/month`);
+  lines.push(`📅 Available ${startDate} to ${endDate}`);
+  lines.push("✅ ALL UTILITIES INCLUDED");
+  lines.push("");
+  lines.push("Enjoy a comfortable extended coastal stay at a special monthly rate.");
+  lines.push("");
+  lines.push("Book direct or ask about monthly availability:");
   lines.push(directUrl);
   lines.push("");
 
@@ -526,6 +638,9 @@ async function scanProperty(property, scanFrom, scanTo) {
 let activeGenerationPromise = null;
 let cachedGenerationResult = null;
 let cachedGenerationExpiresAt = 0;
+let activeOffSeasonPromise = null;
+let cachedOffSeasonResult = null;
+let cachedOffSeasonExpiresAt = 0;
 
 const GENERATION_CACHE_MS = 60 * 1000;
 
@@ -627,4 +742,72 @@ export async function generateSpecials() {
   }
 
   return activeGenerationPromise;
+}
+
+async function generateOffSeasonRentalsOnce() {
+  const listingsResponse = await getAllListings();
+  const listings = normalizeListingsResponse(listingsResponse);
+  const savedProperties = await getManagedPropertiesFromListings(listingsResponse);
+  const rentalPosts = listings
+    .map((listing) => mergeListingWithSavedSettings(listing, savedProperties))
+    .filter((property) =>
+      property.active &&
+      property.savedProperty.offSeasonActive === true &&
+      Number(property.savedProperty.offSeasonMonthlyRate || 0) > 0
+    )
+    .sort((a, b) =>
+      shortIdCollator.compare(
+        String(a.shortId || ""),
+        String(b.shortId || "")
+      )
+    )
+    .map((property) => {
+      const message = buildOffSeasonPost(property);
+
+      return {
+        listingId: property.listingId,
+        shortId: property.shortId,
+        title:
+          property.listing.title ||
+          property.listing.nickname ||
+          property.shortId,
+        propertyTitle:
+          property.listing.title ||
+          property.listing.nickname ||
+          property.shortId,
+        propertyId: property.shortId,
+        monthlyRate: Number(property.savedProperty.offSeasonMonthlyRate || 0),
+        startDate: property.savedProperty.offSeasonStartDate,
+        endDate: property.savedProperty.offSeasonEndDate,
+        message,
+        post: message
+      };
+    });
+
+  return {
+    ok: true,
+    foundProperties: rentalPosts.length,
+    propertyPosts: rentalPosts
+  };
+}
+
+export async function generateOffSeasonRentals() {
+  if (cachedOffSeasonResult && Date.now() < cachedOffSeasonExpiresAt) {
+    return cachedOffSeasonResult;
+  }
+
+  if (!activeOffSeasonPromise) {
+    activeOffSeasonPromise = generateOffSeasonRentalsOnce()
+      .then((result) => {
+        cachedOffSeasonResult = result;
+        cachedOffSeasonExpiresAt = Date.now() + GENERATION_CACHE_MS;
+
+        return result;
+      })
+      .finally(() => {
+        activeOffSeasonPromise = null;
+      });
+  }
+
+  return activeOffSeasonPromise;
 }

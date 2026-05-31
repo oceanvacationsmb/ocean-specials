@@ -14,7 +14,10 @@ import {
   saveManagedProperty
 } from "./services/propertyManager.js";
 
-import { generateSpecials } from "./services/specialGenerator.js";
+import {
+  generateSpecials,
+  generateOffSeasonRentals
+} from "./services/specialGenerator.js";
 
 import {
   getAppSetting,
@@ -198,6 +201,29 @@ function pageShell(title, body) {
           .error {
             color: #b42318;
             font-weight: 800;
+          }
+
+          .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 18px;
+          }
+
+          .tab-button {
+            background: #dbe7ee;
+            color: #16324a;
+          }
+
+          .tab-button.active {
+            background: #062f53;
+            color: white;
+          }
+
+          .off-season-settings {
+            padding: 16px;
+            border: 1px solid #d5e0e8;
+            border-radius: 9px;
+            background: #f8fbfd;
           }
 
           @media (max-width: 850px) {
@@ -508,6 +534,19 @@ app.post("/api/specials/generate", async (req, res) => {
   }
 });
 
+app.get("/api/off-season-rentals/generate", async (req, res) => {
+  try {
+    const result = await generateOffSeasonRentals();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
 app.get("/properties", (req, res) => {
   res.send(
     pageShell(
@@ -703,7 +742,11 @@ app.get("/properties", (req, res) => {
               vrboUrl: getValue("vrboUrl-" + listingId),
               minNights: 1,
               maxNights: 45,
-              scanDays: 45
+              scanDays: 45,
+              offSeasonActive: getChecked("offSeasonActive-" + listingId),
+              offSeasonMonthlyRate: getValue("offSeasonMonthlyRate-" + listingId),
+              offSeasonStartDate: getValue("offSeasonStartDate-" + listingId),
+              offSeasonEndDate: getValue("offSeasonEndDate-" + listingId)
             };
           }
 
@@ -828,6 +871,37 @@ app.get("/properties", (req, res) => {
 
               + '  <br />'
 
+              + '  <div class="off-season-settings">'
+              + '    <h3>Off Season Monthly Rental</h3>'
+              + '    <div class="grid-3">'
+              + '      <div>'
+              + '        <label>Include in Off Season Rentals</label>'
+              + '        <input id="offSeasonActive-' + escapeHtml(id) + '" type="checkbox" ' + (property.offSeasonActive === true ? "checked" : "") + ' style="width:auto;" />'
+              + '      </div>'
+              + '      <div>'
+              + '        <label>Monthly Rate</label>'
+              + '        <input id="offSeasonMonthlyRate-' + escapeHtml(id) + '" type="number" min="0" step="1" value="' + escapeHtml(property.offSeasonMonthlyRate || "") + '" placeholder="3000" />'
+              + '      </div>'
+              + '      <div>'
+              + '        <label>Season Period</label>'
+              + '        <div class="small">Default: Oct 1 through the end of February</div>'
+              + '      </div>'
+              + '    </div>'
+              + '    <br />'
+              + '    <div class="grid">'
+              + '      <div>'
+              + '        <label>Start Date</label>'
+              + '        <input id="offSeasonStartDate-' + escapeHtml(id) + '" type="date" value="' + escapeHtml(property.offSeasonStartDate || "") + '" />'
+              + '      </div>'
+              + '      <div>'
+              + '        <label>End Date</label>'
+              + '        <input id="offSeasonEndDate-' + escapeHtml(id) + '" type="date" value="' + escapeHtml(property.offSeasonEndDate || "") + '" />'
+              + '      </div>'
+              + '    </div>'
+              + '  </div>'
+
+              + '  <br />'
+
               + '  <div class="row">'
               + '    <button onclick="saveProperty(\\'' + escapeHtml(id) + '\\')">Save Property</button>'
               + '    <span id="saveStatus-' + escapeHtml(id) + '"></span>'
@@ -869,21 +943,41 @@ app.get("/specials", (req, res) => {
     pageShell(
       "Specials",
       `
-        <div class="card">
-          <h2>Generate Specials</h2>
-          <p class="small">
-            Specials scan automatically when this page opens. Default is 45 days starting 2 days from today.
-          </p>
-
-          <div class="small">
-            Period: Today + 2 days through the next 45 days
-          </div>
-
-          <input id="scanDays" type="hidden" value="45" />
+        <div class="tabs">
+          <button id="lastMinuteTab" class="tab-button active" onclick="showSpecialsTab('last-minute')">LAST MINUTE DEALS</button>
+          <button id="offSeasonTab" class="tab-button" onclick="showSpecialsTab('off-season')">OFF SEASON RENTALS</button>
         </div>
 
-        <div id="status"></div>
-        <div id="results"></div>
+        <section id="last-minute-panel" class="tab-panel">
+          <div class="card">
+            <h2>Generate Specials</h2>
+            <p class="small">
+              Specials scan automatically when this page opens. Default is 45 days starting 2 days from today.
+            </p>
+
+            <div class="small">
+              Period: Today + 2 days through the next 45 days
+            </div>
+
+            <input id="scanDays" type="hidden" value="45" />
+          </div>
+
+          <div id="status"></div>
+          <div id="results"></div>
+        </section>
+
+        <section id="off-season-panel" class="tab-panel" style="display:none;">
+          <div class="card">
+            <h2>Off Season Rentals</h2>
+            <p class="small">
+              Monthly rental posts use the rates and dates saved in the Property Dashboard.
+              Default period is Oct 1 through the end of February.
+            </p>
+          </div>
+
+          <div id="offSeasonStatus"></div>
+          <div id="offSeasonResults"></div>
+        </section>
 
         <script>
           let SERVER_FACEBOOK_GROUPS = "";
@@ -1014,6 +1108,15 @@ app.get("/specials", (req, res) => {
             status.innerHTML = '<span class="small">Opening Facebook groups and preparing posts...</span>';
           }
 
+          function showSpecialsTab(tab) {
+            const isLastMinute = tab === "last-minute";
+
+            document.getElementById("last-minute-panel").style.display = isLastMinute ? "" : "none";
+            document.getElementById("off-season-panel").style.display = isLastMinute ? "none" : "";
+            document.getElementById("lastMinuteTab").classList.toggle("active", isLastMinute);
+            document.getElementById("offSeasonTab").classList.toggle("active", !isLastMinute);
+          }
+
           window.addEventListener("message", (event) => {
             if (event.source !== window) return;
 
@@ -1070,6 +1173,30 @@ app.get("/specials", (req, res) => {
               + '  <div class="small">Property ID: ' + escapeHtml(propertyId) + '</div>'
               + '  <div class="small">Specials found: ' + specials.length + '</div>'
               +    flyerLine
+              + '  <br />'
+              + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(message) + '</textarea>'
+              + '  <br /><br />'
+              + '  <div class="row">'
+              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Prepare Facebook Posts</button>'
+              + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
+              + '    <span id="copy-' + textareaId + '"></span>'
+              + '    <span id="posting-' + textareaId + '"></span>'
+              + '  </div>'
+              + '</div>';
+          }
+
+          function renderOffSeasonPost(post, index) {
+            const textareaId = "off-season-post-" + index;
+            const message = getPostMessage(post);
+            const title = getPostTitle(post);
+            const propertyId = getPostId(post);
+
+            return ''
+              + '<div class="card">'
+              + '  <h3>' + escapeHtml(title) + '</h3>'
+              + '  <div class="small">Property ID: ' + escapeHtml(propertyId) + '</div>'
+              + '  <div class="small">Monthly rate: $' + escapeHtml(Number(post.monthlyRate || 0).toLocaleString()) + '</div>'
+              + '  <div class="small">Period: ' + escapeHtml(post.startDate || "") + ' to ' + escapeHtml(post.endDate || "") + '</div>'
               + '  <br />'
               + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(message) + '</textarea>'
               + '  <br /><br />'
@@ -1184,9 +1311,48 @@ app.get("/specials", (req, res) => {
             results.innerHTML = debugHtml + propertyPosts.map(renderPost).join("");
           }
 
+          async function generateOffSeasonRentals() {
+            const status = document.getElementById("offSeasonStatus");
+            const results = document.getElementById("offSeasonResults");
+
+            status.innerHTML = '<div class="card">Loading off season rental posts...</div>';
+            results.innerHTML = "";
+
+            const response = await fetch("/api/off-season-rentals/generate", {
+              cache: "no-store"
+            });
+
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML = '<div class="card error">' + escapeHtml(data.error || "Failed to generate") + '</div>';
+              return;
+            }
+
+            const propertyPosts = Array.isArray(data.propertyPosts)
+              ? data.propertyPosts
+              : [];
+
+            status.innerHTML =
+              '<div class="card">Found '
+              + propertyPosts.length
+              + ' off season monthly rentals.</div>';
+
+            if (!propertyPosts.length) {
+              results.innerHTML =
+                '<div class="card">No off season rentals enabled yet. Add monthly rates in the Property Dashboard.</div>';
+              return;
+            }
+
+            results.innerHTML = propertyPosts.map(renderOffSeasonPost).join("");
+          }
+
           async function startPage() {
             await loadFacebookGroups();
-            await generateSpecials();
+            await Promise.all([
+              generateSpecials(),
+              generateOffSeasonRentals()
+            ]);
           }
 
           startPage();
