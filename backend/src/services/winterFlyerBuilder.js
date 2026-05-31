@@ -5,17 +5,19 @@ import sharp from "sharp";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
-const PHOTO_HEIGHT = 700;
+const HERO_HEIGHT = 585;
 
 const COLORS = {
-  navy: "#062f53",
-  teal: "#0f8f9f",
-  tealDark: "#08727f",
-  gold: "#d9b35f",
+  navy: "#06375f",
+  deepNavy: "#022a49",
+  teal: "#0796a6",
+  tealDark: "#047987",
+  aqua: "#dff5f3",
   white: "#ffffff",
-  ice: "#eef7f8",
-  text: "#16324a",
-  muted: "#52616f"
+  gold: "#efc45c",
+  coral: "#f46f61",
+  text: "#12344d",
+  muted: "#577284"
 };
 
 function escapeXml(value = "") {
@@ -27,107 +29,146 @@ function escapeXml(value = "") {
     .replace(/>/g, "&gt;");
 }
 
-function wrapText(text, maxCharsPerLine = 32, maxLines = 2) {
-  const words = String(text || "").split(/\s+/).filter(Boolean);
-  const lines = [];
-  let current = "";
+function icon(type, x, y, stroke = COLORS.navy) {
+  const common = `stroke="${stroke}" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
 
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-
-    if (next.length <= maxCharsPerLine) {
-      current = next;
-      continue;
-    }
-
-    if (current) {
-      lines.push(current);
-    }
-
-    current = word;
+  if (type === "BED") {
+    return `
+      <path d="M${x - 19} ${y + 8} V${y - 8} M${x + 19} ${y + 8} V${y - 1} Q${x + 19} ${y - 10} ${x + 10} ${y - 10} H${x - 16} V${y + 8} M${x - 19} ${y + 2} H${x + 19}" ${common}/>
+      <circle cx="${x - 9}" cy="${y - 15}" r="5" ${common}/>
+    `;
   }
 
-  if (current) {
-    lines.push(current);
+  if (type === "BATH") {
+    return `
+      <path d="M${x - 21} ${y - 2} H${x + 21} V${y + 4} Q${x + 18} ${y + 18} ${x + 3} ${y + 18} H${x - 3} Q${x - 18} ${y + 18} ${x - 21} ${y + 4} Z M${x - 12} ${y + 18} V${y + 24} M${x + 12} ${y + 18} V${y + 24}" ${common}/>
+      <path d="M${x - 13} ${y - 2} V${y - 17} Q${x - 13} ${y - 25} ${x - 5} ${y - 25} Q${x + 3} ${y - 25} ${x + 3} ${y - 17}" ${common}/>
+    `;
   }
 
-  return lines.slice(0, maxLines);
+  if (type === "GUEST") {
+    return `
+      <circle cx="${x}" cy="${y - 13}" r="8" ${common}/>
+      <path d="M${x - 15} ${y + 18} Q${x - 15} ${y + 1} ${x} ${y + 1} Q${x + 15} ${y + 1} ${x + 15} ${y + 18}" ${common}/>
+      <circle cx="${x - 20}" cy="${y - 8}" r="6" ${common}/>
+      <circle cx="${x + 20}" cy="${y - 8}" r="6" ${common}/>
+    `;
+  }
+
+  if (type === "WIFI") {
+    return `
+      <path d="M${x - 22} ${y - 6} Q${x} ${y - 25} ${x + 22} ${y - 6} M${x - 14} ${y + 3} Q${x} ${y - 9} ${x + 14} ${y + 3} M${x - 6} ${y + 11} Q${x} ${y + 5} ${x + 6} ${y + 11}" ${common}/>
+      <circle cx="${x}" cy="${y + 18}" r="3.5" fill="${stroke}"/>
+    `;
+  }
+
+  if (type === "BEACH") {
+    return `
+      <path d="M${x - 24} ${y + 19} H${x + 24} M${x} ${y - 18} V${y + 19} M${x - 22} ${y - 2} Q${x} ${y - 28} ${x + 22} ${y - 2} Q${x + 11} ${y - 8} ${x} ${y - 2} Q${x - 11} ${y - 8} ${x - 22} ${y - 2} Z" ${common}/>
+    `;
+  }
+
+  if (type === "POOL") {
+    return `
+      <path d="M${x - 24} ${y - 5} Q${x - 14} ${y - 13} ${x - 4} ${y - 5} Q${x + 6} ${y + 3} ${x + 16} ${y - 5} Q${x + 22} ${y - 10} ${x + 27} ${y - 6} M${x - 24} ${y + 9} Q${x - 14} ${y + 1} ${x - 4} ${y + 9} Q${x + 6} ${y + 17} ${x + 16} ${y + 9} Q${x + 22} ${y + 4} ${x + 27} ${y + 8}" ${common}/>
+    `;
+  }
+
+  if (type === "GRILL") {
+    return `
+      <path d="M${x - 22} ${y + 14} H${x + 22} M${x - 16} ${y + 14} V${y + 24} M${x + 16} ${y + 14} V${y + 24} M${x - 18} ${y - 6} H${x + 18} V${y + 10} H${x - 18} Z M${x - 11} ${y - 6} V${y - 17} M${x} ${y - 6} V${y - 20} M${x + 11} ${y - 6} V${y - 17}" ${common}/>
+    `;
+  }
+
+  return `
+    <circle cx="${x}" cy="${y}" r="20" fill="none" stroke="${stroke}" stroke-width="3"/>
+    <path d="M${x - 8} ${y} L${x - 2} ${y + 7} L${x + 10} ${y - 9}" ${common}/>
+  `;
 }
 
-function buildFactsLine(flyer) {
-  const parts = [];
+function getAmenityIcon(label) {
+  const text = String(label || "").toLowerCase();
 
-  if (flyer.bedrooms) parts.push(`${flyer.bedrooms} Bedrooms`);
-  if (flyer.bathrooms) parts.push(`${flyer.bathrooms} Bathrooms`);
-  if (flyer.sleeps) parts.push(`Sleeps ${flyer.sleeps}`);
+  if (text.includes("wifi")) return "WIFI";
+  if (text.includes("beach") || text.includes("ocean")) return "BEACH";
+  if (text.includes("pool") || text.includes("hot tub")) return "POOL";
+  if (text.includes("grill")) return "GRILL";
 
-  return parts.join("  |  ");
+  return "CHECK";
 }
 
-function buildHighlightsSvg(highlights) {
-  return highlights
-    .slice(0, 6)
-    .map((highlight, index) => {
-      const column = index % 2;
-      const row = Math.floor(index / 2);
-      const x = 90 + column * 465;
-      const y = 1080 + row * 52;
+function factCard(type, label, x) {
+  return `
+    <rect x="${x}" y="915" width="290" height="82" rx="16" fill="${COLORS.white}"/>
+    ${icon(type, x + 42, 954, COLORS.tealDark)}
+    <text x="${x + 79}" y="964" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="800">${escapeXml(label)}</text>
+  `;
+}
 
-      return `
-        <circle cx="${x}" cy="${y - 7}" r="8" fill="${COLORS.gold}" />
-        <path d="M${x - 4} ${y - 7} L${x - 1} ${y - 3} L${x + 6} ${y - 12}" stroke="${COLORS.navy}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-        <text x="${x + 22}" y="${y}" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="700">${escapeXml(highlight)}</text>
-      `;
-    })
-    .join("");
+function amenityPill(label, x, y) {
+  const fontSize = String(label || "").length > 21 ? 17 : 19;
+
+  return `
+    <rect x="${x}" y="${y}" width="300" height="68" rx="34" fill="${COLORS.white}"/>
+    ${icon(getAmenityIcon(label), x + 42, y + 34, COLORS.tealDark)}
+    <text x="${x + 82}" y="${y + 42}" font-size="${fontSize}" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="800">${escapeXml(label)}</text>
+  `;
+}
+
+function formatSeasonDate(value) {
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric"
+  }).toUpperCase();
 }
 
 function buildOverlaySvg(flyer) {
-  const titleLines = wrapText(flyer.title, 33, 2);
-  const factsLine = buildFactsLine(flyer);
-  const highlightsSvg = buildHighlightsSvg(flyer.highlights || []);
+  const amenities = (flyer.highlights || []).slice(0, 4);
+  const season = `${formatSeasonDate(flyer.startDate)} - ${formatSeasonDate(flyer.endDate)}`;
+  const poolNote = amenities.some((label) =>
+    String(label).toLowerCase().includes("not heated")
+  )
+    ? "* Private pool is not heated."
+    : "";
 
   return `
     <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="photo-shade" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stop-color="${COLORS.navy}" stop-opacity="0.10" />
-          <stop offset="100%" stop-color="${COLORS.navy}" stop-opacity="0.82" />
-        </linearGradient>
-      </defs>
+      <rect x="0" y="${HERO_HEIGHT}" width="${WIDTH}" height="${HEIGHT - HERO_HEIGHT}" fill="${COLORS.aqua}"/>
+      <rect x="0" y="${HERO_HEIGHT}" width="${WIDTH}" height="146" fill="${COLORS.tealDark}"/>
+      <text x="56" y="652" font-size="56" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">WINTER SPECIAL</text>
+      <text x="58" y="701" font-size="28" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">BOOK NOW &amp; SAVE IN ${escapeXml(String(flyer.location || "").toUpperCase())}</text>
 
-      <rect x="0" y="0" width="${WIDTH}" height="${PHOTO_HEIGHT}" fill="url(#photo-shade)" />
-      <rect x="0" y="${PHOTO_HEIGHT}" width="${WIDTH}" height="${HEIGHT - PHOTO_HEIGHT}" fill="${COLORS.ice}" />
+      <path d="M787 ${HERO_HEIGHT} H1080 V814 H840 L787 761 Z" fill="${COLORS.coral}"/>
+      <text x="937" y="652" text-anchor="middle" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">MONTHLY SPECIAL</text>
+      <text x="937" y="716" text-anchor="middle" font-size="52" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">${escapeXml(flyer.monthlyRate)}</text>
+      <text x="937" y="750" text-anchor="middle" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">PER MONTH</text>
 
-      <rect x="38" y="36" width="290" height="76" rx="8" fill="${COLORS.navy}" fill-opacity="0.96" />
-      <text x="183" y="70" font-size="27" font-family="Georgia, serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">OCEAN</text>
-      <text x="183" y="96" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" text-anchor="middle" font-weight="900">VACATIONS</text>
+      <rect x="56" y="784" width="688" height="94" rx="18" fill="${COLORS.white}"/>
+      <text x="88" y="824" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" font-weight="900">COASTAL WINTER MONTHLY RENTAL</text>
+      <text x="88" y="856" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="700">${escapeXml(season)}  |  One month minimum</text>
 
-      <rect x="804" y="36" width="238" height="76" rx="8" fill="${COLORS.gold}" fill-opacity="0.97" />
-      <text x="923" y="68" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">PROPERTY ID</text>
-      <text x="923" y="99" font-size="25" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">${escapeXml(flyer.propertyId)}</text>
+      ${factCard("BED", `${flyer.bedrooms || "-"} Bedrooms`, 56)}
+      ${factCard("BATH", `${flyer.bathrooms || "-"} Bathrooms`, 395)}
+      ${factCard("GUEST", `Sleeps ${flyer.sleeps || "-"}`, 734)}
 
-      <text x="60" y="492" font-size="36" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">${escapeXml(flyer.location.toUpperCase())}</text>
-      <text x="60" y="557" font-size="73" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">WINTER SPECIAL</text>
-      <text x="62" y="616" font-size="39" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">BOOK NOW AND SAVE!</text>
-      <line x1="62" y1="644" x2="558" y2="644" stroke="${COLORS.gold}" stroke-width="5" />
+      <text x="56" y="1044" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">EVERYTHING YOU NEED FOR AN EASY WINTER STAY</text>
+      ${amenities.map((label, index) => {
+        const column = index % 3;
+        const row = Math.floor(index / 3);
 
-      <rect x="54" y="742" width="972" height="114" rx="10" fill="${COLORS.navy}" />
-      <text x="540" y="790" font-size="25" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" text-anchor="middle" font-weight="900">MONTHLY RENTAL</text>
-      <text x="540" y="837" font-size="48" font-family="Georgia, serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">${escapeXml(flyer.monthlyRate)}/MONTH</text>
+        return amenityPill(label, 56 + column * 334, 1081 + row * 87);
+      }).join("")}
 
-      ${titleLines.map((line, index) => `
-        <text x="540" y="${915 + index * 36}" font-size="29" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" text-anchor="middle" font-weight="900">${escapeXml(line)}</text>
-      `).join("")}
-
-      <text x="540" y="1008" font-size="26" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" text-anchor="middle" font-weight="900">${escapeXml(factsLine)}</text>
-      <line x1="60" y1="1037" x2="1020" y2="1037" stroke="${COLORS.gold}" stroke-width="3" />
-
-      ${highlightsSvg}
-
-      <rect x="54" y="1250" width="972" height="62" rx="8" fill="${COLORS.teal}" />
-      <text x="540" y="1289" font-size="26" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" text-anchor="middle" font-weight="900">ALL UTILITIES INCLUDED  |  LINKS IN POST</text>
-      <text x="540" y="1334" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" text-anchor="middle" font-weight="900">oceanvacationsmb.com</text>
+      <rect x="390" y="1168" width="634" height="68" rx="34" fill="${COLORS.navy}"/>
+      <text x="707" y="1211" text-anchor="middle" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">ALL UTILITIES INCLUDED</text>
+      <text x="56" y="1288" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.muted}">${escapeXml(poolNote)}</text>
+      <text x="540" y="1321" text-anchor="middle" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">OCEANVACATIONSMB.COM</text>
     </svg>
   `;
 }
@@ -144,21 +185,43 @@ async function downloadImageBuffer(url) {
   return Buffer.from(response.data);
 }
 
+async function makeFullPropertyImage(url) {
+  const imageBuffer = await downloadImageBuffer(url);
+  const background = await sharp(imageBuffer)
+    .rotate()
+    .resize(WIDTH, HERO_HEIGHT, {
+      fit: "cover",
+      position: "center"
+    })
+    .blur(18)
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  const image = await sharp(imageBuffer)
+    .rotate()
+    .resize(WIDTH, HERO_HEIGHT, {
+      fit: "contain",
+      background: {
+        r: 0,
+        g: 0,
+        b: 0,
+        alpha: 0
+      }
+    })
+    .png()
+    .toBuffer();
+
+  return {
+    background,
+    image
+  };
+}
+
 export async function createWinterFlyer(flyer) {
   if (!flyer.photoUrl) {
     throw new Error("No property image found for winter flyer");
   }
 
-  const imageBuffer = await downloadImageBuffer(flyer.photoUrl);
-  const propertyImage = await sharp(imageBuffer)
-    .rotate()
-    .resize(WIDTH, PHOTO_HEIGHT, {
-      fit: "cover",
-      position: "center"
-    })
-    .jpeg({ quality: 94 })
-    .toBuffer();
-
+  const propertyImage = await makeFullPropertyImage(flyer.photoUrl);
   const outputPath = path.join(
     os.tmpdir(),
     `winter-flyer-${Date.now()}-${Math.random().toString(36).slice(2)}.png`
@@ -169,12 +232,17 @@ export async function createWinterFlyer(flyer) {
       width: WIDTH,
       height: HEIGHT,
       channels: 4,
-      background: COLORS.ice
+      background: COLORS.aqua
     }
   })
     .composite([
       {
-        input: propertyImage,
+        input: propertyImage.background,
+        top: 0,
+        left: 0
+      },
+      {
+        input: propertyImage.image,
         top: 0,
         left: 0
       },

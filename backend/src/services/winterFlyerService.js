@@ -1,7 +1,11 @@
 import fs from "fs/promises";
 
+import { getAllListings } from "./guestyApi.js";
 import { uploadFlyerToCloudinary } from "./cloudinaryService.js";
-import { saveOffSeasonFlyerUrl } from "./propertyManager.js";
+import {
+  getManagedPropertiesFromListings,
+  saveOffSeasonFlyerUrl
+} from "./propertyManager.js";
 import { createWinterFlyer } from "./winterFlyerBuilder.js";
 
 function cleanText(value) {
@@ -28,9 +32,15 @@ function hasAmenity(available, matches) {
   return matches.some((match) => available.has(match));
 }
 
-function getWinterHighlights(listing) {
+function getWinterHighlights(listing, shortId) {
   const available = getAmenities(listing);
   const highlights = ["FREE WIFI"];
+  const listingText =
+    `${listing.title || ""} ${listing.nickname || ""}`.toLowerCase();
+  const hasPrivatePool =
+    available.has("private pool") ||
+    listingText.includes("private pool") ||
+    listingText.includes("pvt pool");
 
   if (
     hasAmenity(available, [
@@ -45,6 +55,12 @@ function getWinterHighlights(listing) {
     ])
   ) {
     highlights.push("Close to the Beach");
+  }
+
+  if (shortId === "2000" || shortId === "469") {
+    highlights.push("Heated Indoor Pool");
+  } else if (hasPrivatePool) {
+    highlights.push("Private Pool (Not Heated)");
   }
 
   const options = [
@@ -108,10 +124,10 @@ export async function ensureOffSeasonFlyer({
   savedProperty,
   listingId,
   shortId
-}) {
+}, { force = false } = {}) {
   const existingUrl = cleanText(savedProperty.offSeasonFlyerUrl);
 
-  if (existingUrl) {
+  if (existingUrl && !force) {
     return {
       flyerUrl: existingUrl,
       created: false
@@ -140,7 +156,9 @@ export async function ensureOffSeasonFlyer({
     bedrooms,
     bathrooms,
     sleeps,
-    highlights: getWinterHighlights(listing),
+    highlights: getWinterHighlights(listing, shortId),
+    startDate: savedProperty.offSeasonStartDate,
+    endDate: savedProperty.offSeasonEndDate,
     photoUrl: getListingImageUrl(listing)
   });
 
@@ -161,4 +179,51 @@ export async function ensureOffSeasonFlyer({
   } finally {
     await fs.unlink(localFilePath).catch(() => {});
   }
+}
+
+function normalizeListingsResponse(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.results)) return data.results;
+  if (Array.isArray(data.listings)) return data.listings;
+  if (Array.isArray(data.data)) return data.data;
+
+  return [];
+}
+
+export async function regenerateOffSeasonFlyer(listingId) {
+  const listingsResponse = await getAllListings();
+  const listings = normalizeListingsResponse(listingsResponse);
+  const listing = listings.find((item) =>
+    (item._id || item.id || "") === listingId
+  );
+
+  if (!listing) {
+    throw new Error("Property was not found in Guesty");
+  }
+
+  const properties = await getManagedPropertiesFromListings(listingsResponse);
+  const savedProperty = properties.find((item) => item.listingId === listingId);
+
+  if (!savedProperty) {
+    throw new Error("Property settings were not found");
+  }
+
+  const flyer = await ensureOffSeasonFlyer(
+    {
+      listing,
+      savedProperty,
+      listingId,
+      shortId: savedProperty.shortId
+    },
+    {
+      force: true
+    }
+  );
+
+  return {
+    ...flyer,
+    listingId,
+    propertyId: savedProperty.shortId
+  };
 }

@@ -7,10 +7,6 @@ import {
   getManagedPropertiesFromListings
 } from "./propertyManager.js";
 
-import {
-  ensureOffSeasonFlyer
-} from "./winterFlyerService.js";
-
 const shortIdCollator = new Intl.Collator("en", {
   numeric: true,
   sensitivity: "base"
@@ -855,19 +851,10 @@ async function generateOffSeasonRentalsOnce() {
   for (const property of configuredProperties) {
     const result = await scanOffSeasonProperty(property);
 
-    try {
-      const flyer = await ensureOffSeasonFlyer(property);
-
-      result.offSeasonFlyerUrl = flyer.flyerUrl;
-      result.flyerCreated = flyer.created;
-      result.flyerError = null;
-    } catch (error) {
-      result.offSeasonFlyerUrl = "";
-      result.flyerCreated = false;
-      result.flyerError =
-        error.message ||
-        "Winter flyer generation failed";
-    }
+    result.offSeasonFlyerUrl =
+      property.savedProperty.offSeasonFlyerUrl || "";
+    result.flyerCreated = false;
+    result.flyerError = null;
 
     results.push(result);
 
@@ -945,4 +932,9 @@ export async function generateOffSeasonRentals() {
   }
 
   return activeOffSeasonPromise;
+}
+
+export function clearOffSeasonRentalsCache() {
+  cachedOffSeasonResult = null;
+  cachedOffSeasonExpiresAt = 0;
 }

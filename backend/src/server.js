@@ -16,8 +16,13 @@ import {
 
 import {
   generateSpecials,
-  generateOffSeasonRentals
+  generateOffSeasonRentals,
+  clearOffSeasonRentalsCache
 } from "./services/specialGenerator.js";
+
+import {
+  regenerateOffSeasonFlyer
+} from "./services/winterFlyerService.js";
 
 import {
   getAppSetting,
@@ -552,6 +557,24 @@ app.get("/api/off-season-rentals/generate", async (req, res) => {
       ok: false,
       error: error.message,
       details: error.response?.data || null
+    });
+  }
+});
+
+app.post("/api/off-season-rentals/:listingId/flyer/regenerate", async (req, res) => {
+  try {
+    const result = await regenerateOffSeasonFlyer(req.params.listingId);
+
+    clearOffSeasonRentalsCache();
+
+    res.json({
+      ok: true,
+      ...result
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message
     });
   }
 });
@@ -1199,7 +1222,10 @@ app.get("/specials", (req, res) => {
             const message = getPostMessage(post);
             const title = getPostTitle(post);
             const propertyId = getPostId(post);
+            const listingId = post.listingId || "";
             const flyerUrl = post.flyerUrl || "";
+            const previewId = "off-season-flyer-" + index;
+            const flyerStatusId = "off-season-flyer-status-" + index;
 
             return ''
               + '<div class="card">'
@@ -1208,16 +1234,18 @@ app.get("/specials", (req, res) => {
               + '  <div class="small">Monthly rate: $' + escapeHtml(Number(post.monthlyRate || 0).toLocaleString()) + '</div>'
               + '  <div class="small">Period: ' + escapeHtml(post.startDate || "") + ' to ' + escapeHtml(post.endDate || "") + '</div>'
               + (flyerUrl
-                ? '  <br /><img class="flyer-preview" src="' + escapeHtml(flyerUrl) + '" alt="Winter special flyer for ' + escapeHtml(propertyId) + '" />'
-                : '  <div class="error">Winter flyer is not ready yet.</div>')
+                ? '  <br /><img id="' + previewId + '" class="flyer-preview" src="' + escapeHtml(flyerUrl) + '" alt="Winter special flyer for ' + escapeHtml(propertyId) + '" />'
+                : '  <br /><img id="' + previewId + '" class="flyer-preview" style="display:none;" alt="Winter special flyer for ' + escapeHtml(propertyId) + '" />')
               + '  <br />'
               + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(message) + '</textarea>'
               + '  <br /><br />'
               + '  <div class="row">'
+              + '    <button onclick="regenerateWinterFlyer(\\'' + escapeHtml(listingId) + '\\', \\'' + textareaId + '\\', \\'' + previewId + '\\', \\'' + flyerStatusId + '\\', \\'' + escapeHtml(flyerUrl) + '\\')">Regenerate Flyer</button>'
               + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Prepare Facebook Posts</button>'
               + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
               + '    <span id="copy-' + textareaId + '"></span>'
               + '    <span id="posting-' + textareaId + '"></span>'
+              + '    <span id="' + flyerStatusId + '"></span>'
               + '  </div>'
               + '</div>';
           }
@@ -1228,8 +1256,9 @@ app.get("/specials", (req, res) => {
             }
 
             return ''
-              + '<div class="card">'
-              + '  <h3>Properties Checked</h3>'
+              + '<details class="card">'
+              + '  <summary style="font-weight:800; cursor:pointer;">Properties Checked</summary>'
+              + '  <br />'
               + allResults.map((result) => {
                   const propertyId =
                     result.propertyId ||
@@ -1287,7 +1316,53 @@ app.get("/specials", (req, res) => {
                     +    flyerHtml
                     + '</div>';
                 }).join("")
-              + '</div>';
+              + '</details>';
+          }
+
+          async function regenerateWinterFlyer(
+            listingId,
+            textareaId,
+            previewId,
+            flyerStatusId,
+            previousFlyerUrl
+          ) {
+            const status = document.getElementById(flyerStatusId);
+
+            status.innerHTML = '<span class="small">Creating flyer...</span>';
+
+            const response = await fetch(
+              "/api/off-season-rentals/"
+                + encodeURIComponent(listingId)
+                + "/flyer/regenerate",
+              {
+                method: "POST"
+              }
+            );
+
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML =
+                '<span class="error">'
+                + escapeHtml(data.error || "Flyer generation failed")
+                + '</span>';
+              return;
+            }
+
+            const flyerUrl = data.flyerUrl || "";
+            const preview = document.getElementById(previewId);
+            const textarea = document.getElementById(textareaId);
+
+            preview.src = flyerUrl;
+            preview.style.display = "";
+
+            if (previousFlyerUrl && textarea.value.includes(previousFlyerUrl)) {
+              textarea.value = textarea.value.replace(previousFlyerUrl, flyerUrl);
+            } else if (!textarea.value.includes(flyerUrl)) {
+              textarea.value += "\\n\\nflyer:\\n" + flyerUrl;
+            }
+
+            status.innerHTML = '<span class="success">Flyer updated.</span>';
           }
 
           function renderDebug(allResults) {
