@@ -7,6 +7,10 @@ import {
   getManagedPropertiesFromListings
 } from "./propertyManager.js";
 
+import {
+  ensureOffSeasonFlyer
+} from "./winterFlyerService.js";
+
 const shortIdCollator = new Intl.Collator("en", {
   numeric: true,
   sensitivity: "base"
@@ -525,7 +529,17 @@ function buildOffSeasonPost({ listing, savedProperty, monthlyGaps }) {
   const location = getLocation(listing, savedProperty);
   const factsLine = getFactsLine(listing);
   const amenitiesLine = getOffSeasonAmenitiesLine(listing);
-  const imageUrl = getListingImageUrl(listing);
+  const flyerUrl = cleanText(savedProperty.offSeasonFlyerUrl);
+  const airbnbUrl = cleanText(
+    savedProperty.airbnbUrl ||
+    savedProperty.airbnb_url ||
+    ""
+  );
+  const vrboUrl = cleanText(
+    savedProperty.vrboUrl ||
+    savedProperty.vrbo_url ||
+    ""
+  );
   const directUrl =
     cleanText(savedProperty.directUrl || savedProperty.direct_url) ||
     makeDirectUrl(listingId);
@@ -558,9 +572,21 @@ function buildOffSeasonPost({ listing, savedProperty, monthlyGaps }) {
   lines.push(directUrl);
   lines.push("");
 
-  if (imageUrl) {
-    lines.push("Image:");
-    lines.push(imageUrl);
+  if (airbnbUrl) {
+    lines.push("Airbnb:");
+    lines.push(airbnbUrl);
+    lines.push("");
+  }
+
+  if (vrboUrl) {
+    lines.push("VRBO:");
+    lines.push(vrboUrl);
+    lines.push("");
+  }
+
+  if (flyerUrl) {
+    lines.push("Winter Special Flyer:");
+    lines.push(flyerUrl);
   }
 
   return lines.join("\n").trim();
@@ -812,6 +838,21 @@ async function generateOffSeasonRentalsOnce() {
 
   for (const property of configuredProperties) {
     const result = await scanOffSeasonProperty(property);
+
+    try {
+      const flyer = await ensureOffSeasonFlyer(property);
+
+      result.offSeasonFlyerUrl = flyer.flyerUrl;
+      result.flyerCreated = flyer.created;
+      result.flyerError = null;
+    } catch (error) {
+      result.offSeasonFlyerUrl = "";
+      result.flyerCreated = false;
+      result.flyerError =
+        error.message ||
+        "Winter flyer generation failed";
+    }
+
     results.push(result);
 
     await sleep(500);
@@ -838,6 +879,8 @@ async function generateOffSeasonRentalsOnce() {
         startDate: property.savedProperty.offSeasonStartDate,
         endDate: property.savedProperty.offSeasonEndDate,
         monthlyGaps: property.monthlyGaps,
+        flyerUrl: property.offSeasonFlyerUrl,
+        flyerError: property.flyerError,
         message,
         post: message
       };
@@ -859,6 +902,9 @@ async function generateOffSeasonRentalsOnce() {
       monthlyGaps: result.monthlyGaps,
       calendarDaysCount: result.calendarDaysCount,
       availableDaysCount: result.availableDaysCount,
+      flyerUrl: result.offSeasonFlyerUrl,
+      flyerCreated: result.flyerCreated,
+      flyerError: result.flyerError,
       error: result.error
     }))
   };

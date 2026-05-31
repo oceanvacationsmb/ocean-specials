@@ -64,6 +64,7 @@ export async function ensurePropertySettingsTable() {
       off_season_monthly_rate NUMERIC(10, 2),
       off_season_start_date DATE,
       off_season_end_date DATE,
+      off_season_flyer_url TEXT,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
@@ -81,6 +82,7 @@ export async function ensurePropertySettingsTable() {
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_monthly_rate NUMERIC(10, 2);`);
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_start_date DATE;`);
   await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_end_date DATE;`);
+  await db.query(`ALTER TABLE property_settings ADD COLUMN IF NOT EXISTS off_season_flyer_url TEXT;`);
 
   return true;
 }

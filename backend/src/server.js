@@ -193,6 +193,15 @@ function pageShell(title, body) {
             font-size: 15px;
           }
 
+          .flyer-preview {
+            width: min(100%, 360px);
+            aspect-ratio: 4 / 5;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #d5e0e8;
+            background: #eef3f6;
+          }
+
           .success {
             color: #067647;
             font-weight: 800;
@@ -1190,6 +1199,7 @@ app.get("/specials", (req, res) => {
             const message = getPostMessage(post);
             const title = getPostTitle(post);
             const propertyId = getPostId(post);
+            const flyerUrl = post.flyerUrl || "";
 
             return ''
               + '<div class="card">'
@@ -1197,6 +1207,9 @@ app.get("/specials", (req, res) => {
               + '  <div class="small">Property ID: ' + escapeHtml(propertyId) + '</div>'
               + '  <div class="small">Monthly rate: $' + escapeHtml(Number(post.monthlyRate || 0).toLocaleString()) + '</div>'
               + '  <div class="small">Period: ' + escapeHtml(post.startDate || "") + ' to ' + escapeHtml(post.endDate || "") + '</div>'
+              + (flyerUrl
+                ? '  <br /><img class="flyer-preview" src="' + escapeHtml(flyerUrl) + '" alt="Winter special flyer for ' + escapeHtml(propertyId) + '" />'
+                : '  <div class="error">Winter flyer is not ready yet.</div>')
               + '  <br />'
               + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(message) + '</textarea>'
               + '  <br /><br />'
@@ -1233,6 +1246,7 @@ app.get("/specials", (req, res) => {
                   const calendarDays = Number(result.calendarDaysCount || 0);
                   const availableDays = Number(result.availableDaysCount || 0);
                   let statusHtml = "";
+                  let flyerHtml = "";
 
                   if (result.error) {
                     statusHtml =
@@ -1251,12 +1265,26 @@ app.get("/specials", (req, res) => {
                       '<div class="small">No continuous 30-night opening found.</div>';
                   }
 
+                  if (result.flyerUrl) {
+                    flyerHtml =
+                      '<div class="success">Winter flyer saved in Cloudinary.</div>';
+                  } else if (result.flyerError) {
+                    flyerHtml =
+                      '<div class="error">Flyer error: '
+                      + escapeHtml(result.flyerError)
+                      + '</div>';
+                  } else {
+                    flyerHtml =
+                      '<div class="small">Winter flyer is not ready yet.</div>';
+                  }
+
                   return ''
                     + '<div style="padding:14px 0; border-top:1px solid #d9e3ea;">'
                     + '  <strong>' + escapeHtml(propertyId) + ' - ' + escapeHtml(title) + '</strong>'
                     + '  <div class="small">Calendar days checked: ' + calendarDays
                     + ' | Available days: ' + availableDays + '</div>'
                     +    statusHtml
+                    +    flyerHtml
                     + '</div>';
                 }).join("")
               + '</div>';

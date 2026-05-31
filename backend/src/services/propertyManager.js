@@ -238,7 +238,8 @@ async function getSavedSettingsFromDatabase() {
       off_season_active,
       off_season_monthly_rate,
       off_season_start_date,
-      off_season_end_date
+      off_season_end_date,
+      off_season_flyer_url
     FROM property_settings
   `);
 
@@ -257,7 +258,8 @@ async function getSavedSettingsFromDatabase() {
       offSeasonActive: row.off_season_active === true,
       offSeasonMonthlyRate: Number(row.off_season_monthly_rate || 0),
       offSeasonStartDate: formatDateOnly(row.off_season_start_date),
-      offSeasonEndDate: formatDateOnly(row.off_season_end_date)
+      offSeasonEndDate: formatDateOnly(row.off_season_end_date),
+      offSeasonFlyerUrl: row.off_season_flyer_url || ""
     };
   }
 
@@ -323,7 +325,8 @@ export async function getManagedPropertiesFromListings(data) {
         ),
         offSeasonEndMonth: getMonthValue(
           saved.offSeasonEndDate || defaultOffSeasonPeriod.endDate
-        )
+        ),
+        offSeasonFlyerUrl: saved.offSeasonFlyerUrl || ""
       };
     })
     .sort(comparePropertiesByShortId);
@@ -420,4 +423,36 @@ export async function saveManagedProperty(listingId, data) {
   await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));
 
   return savedData;
+}
+
+export async function saveOffSeasonFlyerUrl(listingId, flyerUrl) {
+  const cleanUrl = String(flyerUrl || "").trim();
+
+  if (getPool()) {
+    await ensurePropertySettingsTable();
+
+    await query(
+      `
+        UPDATE property_settings
+        SET
+          off_season_flyer_url = $2,
+          updated_at = NOW()
+        WHERE listing_id = $1
+      `,
+      [listingId, cleanUrl]
+    );
+
+    return cleanUrl;
+  }
+
+  const config = await readJsonFallbackConfig();
+
+  config[listingId] = {
+    ...(config[listingId] || {}),
+    offSeasonFlyerUrl: cleanUrl
+  };
+
+  await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));
+
+  return cleanUrl;
 }
