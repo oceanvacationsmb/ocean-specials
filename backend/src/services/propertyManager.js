@@ -334,12 +334,14 @@ export async function getManagedPropertiesFromListings(data) {
 
 export async function saveManagedProperty(listingId, data) {
   const defaultOffSeasonPeriod = getDefaultOffSeasonPeriod();
+  const hasFlyerImageUrl =
+    Object.prototype.hasOwnProperty.call(data, "flyerImageUrl");
   const savedData = {
     shortId: data.shortId || "",
     active: data.active !== false,
     airbnbUrl: data.airbnbUrl || "",
     vrboUrl: data.vrboUrl || "",
-    flyerImageUrl: data.flyerImageUrl || "",
+    flyerImageUrl: hasFlyerImageUrl ? data.flyerImageUrl || "" : null,
     minNights: Number(data.minNights ?? 1),
     maxNights: Number(data.maxNights ?? 45),
     scanDays: Number(data.scanDays ?? 45),
@@ -383,7 +385,7 @@ export async function saveManagedProperty(listingId, data) {
           active = EXCLUDED.active,
           airbnb_url = EXCLUDED.airbnb_url,
           vrbo_url = EXCLUDED.vrbo_url,
-          flyer_image_url = EXCLUDED.flyer_image_url,
+          flyer_image_url = COALESCE(EXCLUDED.flyer_image_url, property_settings.flyer_image_url),
           min_nights = EXCLUDED.min_nights,
           max_nights = EXCLUDED.max_nights,
           scan_days = EXCLUDED.scan_days,
@@ -417,7 +419,10 @@ export async function saveManagedProperty(listingId, data) {
 
   config[listingId] = {
     ...(config[listingId] || {}),
-    ...savedData
+    ...savedData,
+    flyerImageUrl: hasFlyerImageUrl
+      ? savedData.flyerImageUrl
+      : config[listingId]?.flyerImageUrl || ""
   };
 
   await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));
@@ -450,6 +455,38 @@ export async function saveOffSeasonFlyerUrl(listingId, flyerUrl) {
   config[listingId] = {
     ...(config[listingId] || {}),
     offSeasonFlyerUrl: cleanUrl
+  };
+
+  await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));
+
+  return cleanUrl;
+}
+
+export async function saveFlyerImageUrl(listingId, flyerUrl) {
+  const cleanUrl = String(flyerUrl || "").trim();
+
+  if (getPool()) {
+    await ensurePropertySettingsTable();
+
+    await query(
+      `
+        UPDATE property_settings
+        SET
+          flyer_image_url = $2,
+          updated_at = NOW()
+        WHERE listing_id = $1
+      `,
+      [listingId, cleanUrl]
+    );
+
+    return cleanUrl;
+  }
+
+  const config = await readJsonFallbackConfig();
+
+  config[listingId] = {
+    ...(config[listingId] || {}),
+    flyerImageUrl: cleanUrl
   };
 
   await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));

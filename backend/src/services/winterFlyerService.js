@@ -4,9 +4,13 @@ import { getAllListings } from "./guestyApi.js";
 import { uploadFlyerToCloudinary } from "./cloudinaryService.js";
 import {
   getManagedPropertiesFromListings,
+  saveFlyerImageUrl,
   saveOffSeasonFlyerUrl
 } from "./propertyManager.js";
-import { createWinterFlyer } from "./winterFlyerBuilder.js";
+import {
+  createLastMinuteFlyer,
+  createWinterFlyer
+} from "./winterFlyerBuilder.js";
 
 function cleanText(value) {
   return String(value || "").trim();
@@ -194,7 +198,7 @@ function normalizeListingsResponse(data) {
   return [];
 }
 
-export async function regenerateOffSeasonFlyer(listingId) {
+async function getFlyerContext(listingId) {
   const listingsResponse = await getAllListings();
   const listings = normalizeListingsResponse(listingsResponse);
   const listing = listings.find((item) =>
@@ -212,13 +216,18 @@ export async function regenerateOffSeasonFlyer(listingId) {
     throw new Error("Property settings were not found");
   }
 
+  return {
+    listing,
+    savedProperty,
+    listingId,
+    shortId: savedProperty.shortId
+  };
+}
+
+export async function regenerateOffSeasonFlyer(listingId) {
+  const context = await getFlyerContext(listingId);
   const flyer = await ensureOffSeasonFlyer(
-    {
-      listing,
-      savedProperty,
-      listingId,
-      shortId: savedProperty.shortId
-    },
+    context,
     {
       force: true
     }
@@ -227,6 +236,49 @@ export async function regenerateOffSeasonFlyer(listingId) {
   return {
     ...flyer,
     listingId,
-    propertyId: savedProperty.shortId
+    propertyId: context.shortId
+  };
+}
+
+export async function regenerateLastMinuteFlyer(listingId) {
+  const context = await getFlyerContext(listingId);
+  const {
+    listing,
+    savedProperty,
+    shortId
+  } = context;
+  const safeId = `${shortId || "property"}-${String(listingId || "").slice(-6)}`
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+    .toLowerCase();
+  const { localFilePath } = await createLastMinuteFlyer({
+    location:
+      listing.address?.city ||
+      listing.city ||
+      "North Myrtle Beach",
+    bedrooms: getBedrooms(listing),
+    bathrooms: getBathrooms(listing),
+    sleeps: getSleeps(listing),
+    highlights: getWinterHighlights(listing, shortId),
+    photoUrl: getListingImageUrl(listing)
+  });
+
+  try {
+    const uploaded = await uploadFlyerToCloudinary(
+      localFilePath,
+      `last-minute-${safeId}`
+    );
+
+    await saveFlyerImageUrl(listingId, uploaded.url);
+
+    savedProperty.flyerImageUrl = uploaded.url;
+
+    return {
+      flyerUrl: uploaded.url,
+      created: true,
+      listingId,
+      propertyId: shortId
+    };
+  } finally {
+    await fs.unlink(localFilePath).catch(() => {});
   };
 }

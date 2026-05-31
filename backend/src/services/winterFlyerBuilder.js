@@ -143,7 +143,17 @@ function formatSeasonDate(value) {
 
 function buildOverlaySvg(flyer) {
   const amenities = (flyer.highlights || []).slice(0, 5);
-  const season = `${formatSeasonDate(flyer.startDate)} - ${formatSeasonDate(flyer.endDate)}`;
+  const isLastMinute = flyer.type === "last-minute";
+  const headline = isLastMinute ? "LAST MINUTE DEALS" : "WINTER SPECIAL";
+  const locationLine = isLastMinute
+    ? `COASTAL GETAWAY IN ${String(flyer.location || "").toUpperCase()}`
+    : `COASTAL WINTER RENTAL IN ${String(flyer.location || "").toUpperCase()}`;
+  const detailLine = isLastMinute
+    ? "LIMITED DATES AVAILABLE  |  LINKS IN POST"
+    : `${formatSeasonDate(flyer.startDate)} - ${formatSeasonDate(flyer.endDate)}`;
+  const benefits = isLastMinute
+    ? ["FREE STARTUP ESSENTIAL ITEMS", "LINENS & TOWELS INCLUDED"]
+    : ["ALL UTILITIES INCLUDED", "FREE STARTUP ESSENTIAL ITEMS", "LINENS & TOWELS INCLUDED"];
   const poolNote = amenities.some((label) =>
     String(label).toLowerCase().includes("not heated")
   )
@@ -154,24 +164,32 @@ function buildOverlaySvg(flyer) {
     <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
       <rect x="0" y="${HERO_HEIGHT}" width="${WIDTH}" height="${HEIGHT - HERO_HEIGHT}" fill="${COLORS.aqua}"/>
       <rect x="0" y="${HERO_HEIGHT}" width="${WIDTH}" height="146" fill="${COLORS.tealDark}"/>
-      <text x="56" y="652" font-size="56" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">WINTER SPECIAL</text>
+      <text x="56" y="652" font-size="${isLastMinute ? 51 : 56}" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">${escapeXml(headline)}</text>
       <text x="58" y="701" font-size="28" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">BOOK NOW &amp; SAVE!</text>
 
       <path d="M787 ${HERO_HEIGHT} H1080 V814 H840 L787 761 Z" fill="${COLORS.coral}"/>
-      <text x="937" y="635" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">WINTER SPECIAL</text>
-      <text x="937" y="695" text-anchor="middle" font-size="52" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">${escapeXml(flyer.monthlyRate)}</text>
-      <text x="937" y="729" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">PER MONTH</text>
-      <text x="937" y="771" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">ONE MONTH MIN</text>
+      ${isLastMinute
+        ? `
+          <text x="937" y="649" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">LIMITED OPENINGS</text>
+          <text x="937" y="711" text-anchor="middle" font-size="38" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">BOOK TODAY</text>
+          <text x="937" y="761" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">DATES FILL FAST</text>
+        `
+        : `
+          <text x="937" y="635" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">WINTER SPECIAL</text>
+          <text x="937" y="695" text-anchor="middle" font-size="52" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">${escapeXml(flyer.monthlyRate)}</text>
+          <text x="937" y="729" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">PER MONTH</text>
+          <text x="937" y="771" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">ONE MONTH MIN</text>
+        `}
 
       <rect x="56" y="784" width="688" height="94" rx="18" fill="${COLORS.white}"/>
-      <text x="88" y="824" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" font-weight="900">COASTAL WINTER RENTAL IN ${escapeXml(String(flyer.location || "").toUpperCase())}</text>
-      <text x="88" y="856" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="700">${escapeXml(season)}</text>
+      <text x="88" y="824" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" font-weight="900">${escapeXml(locationLine)}</text>
+      <text x="88" y="856" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="700">${escapeXml(detailLine)}</text>
 
       ${factCard("BED", `${flyer.bedrooms || "-"} Bedrooms`, 56)}
       ${factCard("BATH", `${flyer.bathrooms || "-"} Bathrooms`, 395)}
       ${factCard("GUEST", `Sleeps ${flyer.sleeps || "-"}`, 734)}
 
-      <text x="56" y="1044" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">EVERYTHING YOU NEED FOR AN EASY WINTER STAY</text>
+      <text x="56" y="1044" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">FOR YOUR STAY</text>
       ${amenities.map((label, index) => {
         const column = index % 3;
         const row = Math.floor(index / 3);
@@ -179,10 +197,18 @@ function buildOverlaySvg(flyer) {
         return amenityPill(label, 56 + column * 334, 1081 + row * 87);
       }).join("")}
 
-      <rect x="724" y="1168" width="300" height="68" rx="34" fill="${COLORS.navy}"/>
-      <text x="874" y="1211" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">ALL UTILITIES INCLUDED</text>
-      <text x="56" y="1288" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.muted}">${escapeXml(poolNote)}</text>
-      <text x="540" y="1321" text-anchor="middle" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">OCEANVACATIONSMB.COM</text>
+      ${benefits.map((label, index) => {
+        const width = isLastMinute ? 467 : 300;
+        const gap = isLastMinute ? 22 : 18;
+        const x = 56 + index * (width + gap);
+
+        return `
+          <rect x="${x}" y="1240" width="${width}" height="42" rx="21" fill="${COLORS.navy}"/>
+          <text x="${x + width / 2}" y="1267" text-anchor="middle" font-size="${isLastMinute ? 17 : 15}" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">${escapeXml(label)}</text>
+        `;
+      }).join("")}
+      <text x="56" y="1305" font-size="15" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.muted}">${escapeXml(poolNote)}</text>
+      <text x="540" y="1332" text-anchor="middle" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">OCEANVACATIONSMB.COM</text>
     </svg>
   `;
 }
@@ -201,15 +227,31 @@ async function downloadImageBuffer(url) {
 
 async function makeFullPropertyImage(url) {
   const imageBuffer = await downloadImageBuffer(url);
+  const background = await sharp(imageBuffer)
+    .rotate()
+    .resize(WIDTH, HERO_HEIGHT, {
+      fit: "cover",
+      position: "center"
+    })
+    .blur(18)
+    .jpeg({ quality: 90 })
+    .toBuffer();
   const image = await sharp(imageBuffer)
     .rotate()
     .resize(WIDTH, HERO_HEIGHT, {
-      fit: "fill"
+      fit: "contain",
+      background: {
+        r: 0,
+        g: 0,
+        b: 0,
+        alpha: 0
+      }
     })
-    .jpeg({ quality: 95 })
+    .png()
     .toBuffer();
 
   return {
+    background,
     image
   };
 }
@@ -235,6 +277,11 @@ export async function createWinterFlyer(flyer) {
   })
     .composite([
       {
+        input: propertyImage.background,
+        top: 0,
+        left: 0
+      },
+      {
         input: propertyImage.image,
         top: 0,
         left: 0
@@ -251,4 +298,11 @@ export async function createWinterFlyer(flyer) {
   return {
     localFilePath: outputPath
   };
+}
+
+export async function createLastMinuteFlyer(flyer) {
+  return createWinterFlyer({
+    ...flyer,
+    type: "last-minute"
+  });
 }

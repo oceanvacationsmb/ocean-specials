@@ -351,6 +351,17 @@ function getAmenitiesLine(listing) {
     selected.push(highlight);
   }
 
+  if (!selected.some((item) => item.label === "Free Parking")) {
+    if (selected.length >= 7) {
+      selected.pop();
+    }
+
+    selected.push({
+      label: "Free Parking",
+      icon: "🅿️"
+    });
+  }
+
   return selected
     .map((item) => `${item.icon} ${item.label}`)
     .join(" • ");
@@ -505,6 +516,11 @@ function buildPost({ listing, savedProperty, gaps }) {
     ""
   );
 
+  const flyerUrl = cleanText(
+    savedProperty.flyerImageUrl ||
+    savedProperty.flyer_image_url ||
+    ""
+  );
   const imageUrl = getListingImageUrl(listing);
 
   const directUrl =
@@ -516,6 +532,9 @@ function buildPost({ listing, savedProperty, gaps }) {
   lines.push(`🔥 LAST MINUTE DEALS IN ${location.toUpperCase()} 🔥`);
   if (factsLine) lines.push(factsLine);
   if (amenitiesLine) lines.push(amenitiesLine);
+  lines.push("");
+  lines.push("✅ FREE STARTUP ESSENTIAL ITEMS");
+  lines.push("✅ LINENS AND TOWELS INCLUDED");
   lines.push("");
   lines.push("Available dates:");
   lines.push("");
@@ -542,7 +561,10 @@ function buildPost({ listing, savedProperty, gaps }) {
   lines.push(directUrl);
   lines.push("");
 
-  if (imageUrl) {
+  if (flyerUrl) {
+    lines.push("flyer:");
+    lines.push(flyerUrl);
+  } else if (imageUrl) {
     lines.push("Image:");
     lines.push(imageUrl);
   }
@@ -583,6 +605,8 @@ function buildOffSeasonPost({ listing, savedProperty, monthlyGaps, shortId }) {
   lines.push(`📅 Season: ${startDate} to ${endDate} - One month minimum`);
   lines.push(`💵 ${monthlyRate}/month`);
   lines.push("✅ ALL UTILITIES INCLUDED");
+  lines.push("✅ FREE STARTUP ESSENTIAL ITEMS");
+  lines.push("✅ LINENS AND TOWELS INCLUDED");
   lines.push("");
   lines.push("Available monthly periods:");
 
@@ -703,6 +727,7 @@ async function scanProperty(property, scanFrom, scanTo) {
       availableDaysCount: calendarDays.filter((day) => isAvailableCalendarDay(day)).length,
       firstCalendarDay: calendarDays[0] || null,
       imageUrl: getListingImageUrl(listing),
+      flyerImageUrl: savedProperty.flyerImageUrl || "",
       post: gaps.length
         ? buildPost({
             listing,
@@ -725,6 +750,7 @@ async function scanProperty(property, scanFrom, scanTo) {
       availableDaysCount: 0,
       firstCalendarDay: null,
       imageUrl: getListingImageUrl(listing),
+      flyerImageUrl: savedProperty.flyerImageUrl || "",
       post: ""
     };
   }
@@ -778,6 +804,7 @@ async function generateSpecialsOnce() {
       specials: result.specials,
       gaps: result.gaps,
       imageUrl: result.imageUrl,
+      flyerImageUrl: result.flyerImageUrl,
       message: result.post,
       post: result.post
     }));
@@ -949,4 +976,9 @@ export async function generateOffSeasonRentals() {
 export function clearOffSeasonRentalsCache() {
   cachedOffSeasonResult = null;
   cachedOffSeasonExpiresAt = 0;
+}
+
+export function clearSpecialsCache() {
+  cachedGenerationResult = null;
+  cachedGenerationExpiresAt = 0;
 }

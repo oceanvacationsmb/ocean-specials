@@ -17,10 +17,12 @@ import {
 import {
   generateSpecials,
   generateOffSeasonRentals,
+  clearSpecialsCache,
   clearOffSeasonRentalsCache
 } from "./services/specialGenerator.js";
 
 import {
+  regenerateLastMinuteFlyer,
   regenerateOffSeasonFlyer
 } from "./services/winterFlyerService.js";
 
@@ -566,6 +568,24 @@ app.post("/api/off-season-rentals/:listingId/flyer/regenerate", async (req, res)
     const result = await regenerateOffSeasonFlyer(req.params.listingId);
 
     clearOffSeasonRentalsCache();
+
+    res.json({
+      ok: true,
+      ...result
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+app.post("/api/specials/:listingId/flyer/regenerate", async (req, res) => {
+  try {
+    const result = await regenerateLastMinuteFlyer(req.params.listingId);
+
+    clearSpecialsCache();
 
     res.json({
       ok: true,
@@ -1194,8 +1214,11 @@ app.get("/specials", (req, res) => {
             const specials = getPostSpecials(post);
             const title = getPostTitle(post);
             const propertyId = getPostId(post);
-
-            const flyerLine = post.flyerImageUrl || post.flyerUrl
+            const listingId = post.listingId || "";
+            const flyerUrl = post.flyerImageUrl || post.flyerUrl || "";
+            const previewId = "last-minute-flyer-" + index;
+            const flyerStatusId = "last-minute-flyer-status-" + index;
+            const flyerLine = flyerUrl
               ? '<div class="small success">Flyer URL included</div>'
               : '';
 
@@ -1205,14 +1228,19 @@ app.get("/specials", (req, res) => {
               + '  <div class="small">Property ID: ' + escapeHtml(propertyId) + '</div>'
               + '  <div class="small">Specials found: ' + specials.length + '</div>'
               +    flyerLine
+              + (flyerUrl
+                ? '  <br /><img id="' + previewId + '" class="flyer-preview" src="' + escapeHtml(flyerUrl) + '" alt="Last minute deals flyer for ' + escapeHtml(propertyId) + '" />'
+                : '  <br /><img id="' + previewId + '" class="flyer-preview" style="display:none;" alt="Last minute deals flyer for ' + escapeHtml(propertyId) + '" />')
               + '  <br />'
               + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(message) + '</textarea>'
               + '  <br /><br />'
               + '  <div class="row">'
+              + '    <button onclick="regenerateLastMinuteFlyer(\\'' + escapeHtml(listingId) + '\\', \\'' + textareaId + '\\', \\'' + previewId + '\\', \\'' + flyerStatusId + '\\', \\'' + escapeHtml(flyerUrl) + '\\')">Regenerate Flyer</button>'
               + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Prepare Facebook Posts</button>'
               + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
               + '    <span id="copy-' + textareaId + '"></span>'
               + '    <span id="posting-' + textareaId + '"></span>'
+              + '    <span id="' + flyerStatusId + '"></span>'
               + '  </div>'
               + '</div>';
           }
@@ -1332,6 +1360,52 @@ app.get("/specials", (req, res) => {
 
             const response = await fetch(
               "/api/off-season-rentals/"
+                + encodeURIComponent(listingId)
+                + "/flyer/regenerate",
+              {
+                method: "POST"
+              }
+            );
+
+            const data = await response.json();
+
+            if (!data.ok) {
+              status.innerHTML =
+                '<span class="error">'
+                + escapeHtml(data.error || "Flyer generation failed")
+                + '</span>';
+              return;
+            }
+
+            const flyerUrl = data.flyerUrl || "";
+            const preview = document.getElementById(previewId);
+            const textarea = document.getElementById(textareaId);
+
+            preview.src = flyerUrl;
+            preview.style.display = "";
+
+            if (previousFlyerUrl && textarea.value.includes(previousFlyerUrl)) {
+              textarea.value = textarea.value.replace(previousFlyerUrl, flyerUrl);
+            } else if (!textarea.value.includes(flyerUrl)) {
+              textarea.value += "\\n\\nflyer:\\n" + flyerUrl;
+            }
+
+            status.innerHTML = '<span class="success">Flyer updated.</span>';
+          }
+
+          async function regenerateLastMinuteFlyer(
+            listingId,
+            textareaId,
+            previewId,
+            flyerStatusId,
+            previousFlyerUrl
+          ) {
+            const status = document.getElementById(flyerStatusId);
+
+            status.innerHTML = '<span class="small">Creating flyer...</span>';
+
+            const response = await fetch(
+              "/api/specials/"
                 + encodeURIComponent(listingId)
                 + "/flyer/regenerate",
               {
