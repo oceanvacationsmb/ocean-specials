@@ -887,6 +887,7 @@ app.get("/specials", (req, res) => {
 
         <script>
           let SERVER_FACEBOOK_GROUPS = "";
+          let ACTIVE_FACEBOOK_POST_STATUS_ID = "";
 
           function escapeHtml(value) {
             return String(value || "")
@@ -1001,15 +1002,56 @@ app.get("/specials", (req, res) => {
                 source: "OCEAN_SPECIALS_APP",
                 type: "START_FB_POSTING",
                 payload: {
-                  groups
+                  groups,
+                  message
                 }
               },
               "*"
             );
 
             const status = document.getElementById("posting-" + id);
-            status.innerHTML = '<span class="success">Message copied. Facebook groups opened.</span>';
+            ACTIVE_FACEBOOK_POST_STATUS_ID = "posting-" + id;
+            status.innerHTML = '<span class="small">Opening Facebook groups and preparing posts...</span>';
           }
+
+          window.addEventListener("message", (event) => {
+            if (event.source !== window) return;
+
+            const data = event.data || {};
+
+            if (
+              data.source !== "OCEAN_FB_EXTENSION" ||
+              data.type !== "FB_POSTING_PROGRESS"
+            ) {
+              return;
+            }
+
+            const status = document.getElementById(ACTIVE_FACEBOOK_POST_STATUS_ID);
+            const prepared = Number(data.prepared || 0);
+            const total = Number(data.total || 0);
+            const failed = Number(data.failed || 0);
+
+            if (!status) return;
+
+            if (failed) {
+              status.innerHTML =
+                '<span class="small">Prepared '
+                + prepared
+                + ' of '
+                + total
+                + ' groups. '
+                + failed
+                + ' group(s) need manual attention.</span>';
+              return;
+            }
+
+            status.innerHTML =
+              '<span class="success">Prepared '
+              + prepared
+              + ' of '
+              + total
+              + ' Facebook groups.</span>';
+          });
 
           function renderPost(post, index) {
             const textareaId = "post-" + index;
@@ -1032,7 +1074,7 @@ app.get("/specials", (req, res) => {
               + '  <textarea class="postbox" id="' + textareaId + '">' + escapeHtml(message) + '</textarea>'
               + '  <br /><br />'
               + '  <div class="row">'
-              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Copy + Open Groups</button>'
+              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Prepare Facebook Posts</button>'
               + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
               + '    <span id="copy-' + textareaId + '"></span>'
               + '    <span id="posting-' + textareaId + '"></span>'

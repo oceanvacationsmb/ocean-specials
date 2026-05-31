@@ -1,4 +1,10 @@
+const pendingPostsByTabId = new Map();
 const postingWindowIds = new Set();
+const preparedTabIds = new Set();
+const failedTabIds = new Set();
+
+let dashboardTabId = null;
+let totalGroups = 0;
 
 function cleanGroups(groups) {
   if (!Array.isArray(groups)) {
@@ -57,8 +63,65 @@ async function getGridPosition(index, total) {
   };
 }
 
-async function openGroupWindows(groups) {
+function notifyDashboard() {
+  if (!dashboardTabId) {
+    return;
+  }
+
+  chrome.tabs.sendMessage(
+    dashboardTabId,
+    {
+      type: "FB_POSTING_PROGRESS",
+      prepared: preparedTabIds.size,
+      failed: failedTabIds.size,
+      total: totalGroups
+    },
+    () => {
+      void chrome.runtime.lastError;
+    }
+  );
+}
+
+async function sendFillMessage(tabId, message, attempt = 1) {
+  if (preparedTabIds.has(tabId)) {
+    return;
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: "FILL_FACEBOOK_POST",
+      message
+    });
+
+    if (response?.ok) {
+      preparedTabIds.add(tabId);
+      failedTabIds.delete(tabId);
+      notifyDashboard();
+      return;
+    }
+  } catch (error) {
+    // Facebook may still be loading. Retry below.
+  }
+
+  if (attempt < 8) {
+    setTimeout(() => {
+      sendFillMessage(tabId, message, attempt + 1);
+    }, 1400);
+    return;
+  }
+
+  failedTabIds.add(tabId);
+  notifyDashboard();
+}
+
+async function openGroupWindows(message, groups) {
+  pendingPostsByTabId.clear();
+  preparedTabIds.clear();
+  failedTabIds.clear();
+
   const clean = cleanGroups(groups);
+  totalGroups = clean.length;
+  notifyDashboard();
 
   for (let i = 0; i < clean.length; i++) {
     const pos = await getGridPosition(i, clean.length);
@@ -76,6 +139,16 @@ async function openGroupWindows(groups) {
     if (createdWindow?.id) {
       postingWindowIds.add(createdWindow.id);
     }
+
+    const tabId = createdWindow?.tabs?.[0]?.id;
+
+    if (tabId) {
+      pendingPostsByTabId.set(tabId, message);
+
+      setTimeout(() => {
+        sendFillMessage(tabId, message);
+      }, 1800);
+    }
   }
 }
 
@@ -83,6 +156,10 @@ async function closePostingWindows() {
   const ids = Array.from(postingWindowIds);
 
   postingWindowIds.clear();
+  pendingPostsByTabId.clear();
+  preparedTabIds.clear();
+  failedTabIds.clear();
+  totalGroups = 0;
 
   for (const windowId of ids) {
     try {
@@ -95,7 +172,28 @@ async function closePostingWindows() {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request?.type === "START_FB_POSTING") {
-    openGroupWindows(request.payload?.groups || []);
+    dashboardTabId = sender?.tab?.id || null;
+
+    openGroupWindows(
+      request.payload?.message || "",
+      request.payload?.groups || []
+    );
+
+    sendResponse({
+      ok: true
+    });
+
+    return true;
+  }
+
+  if (request?.type === "FB_CONTENT_READY") {
+    const tabId = sender?.tab?.id;
+
+    if (tabId && pendingPostsByTabId.has(tabId)) {
+      setTimeout(() => {
+        sendFillMessage(tabId, pendingPostsByTabId.get(tabId));
+      }, 1000);
+    }
 
     sendResponse({
       ok: true

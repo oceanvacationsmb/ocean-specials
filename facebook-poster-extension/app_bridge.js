@@ -30,3 +30,22 @@ window.addEventListener("message", (event) => {
     }
   );
 });
+
+chrome.runtime.onMessage.addListener((request) => {
+  if (request?.type !== "FB_POSTING_PROGRESS") {
+    return false;
+  }
+
+  window.postMessage(
+    {
+      source: "OCEAN_FB_EXTENSION",
+      type: "FB_POSTING_PROGRESS",
+      prepared: request.prepared || 0,
+      failed: request.failed || 0,
+      total: request.total || 0
+    },
+    "*"
+  );
+
+  return false;
+});
