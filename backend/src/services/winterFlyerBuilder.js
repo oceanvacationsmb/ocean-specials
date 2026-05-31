@@ -80,6 +80,13 @@ function icon(type, x, y, stroke = COLORS.navy) {
     `;
   }
 
+  if (type === "PARK") {
+    return `
+      <circle cx="${x}" cy="${y}" r="21" fill="none" stroke="${stroke}" stroke-width="3"/>
+      <text x="${x}" y="${y + 9}" text-anchor="middle" font-size="27" font-family="Arial, Helvetica, sans-serif" fill="${stroke}" font-weight="900">P</text>
+    `;
+  }
+
   return `
     <circle cx="${x}" cy="${y}" r="20" fill="none" stroke="${stroke}" stroke-width="3"/>
     <path d="M${x - 8} ${y} L${x - 2} ${y + 7} L${x + 10} ${y - 9}" ${common}/>
@@ -93,6 +100,7 @@ function getAmenityIcon(label) {
   if (text.includes("beach") || text.includes("ocean")) return "BEACH";
   if (text.includes("pool") || text.includes("hot tub")) return "POOL";
   if (text.includes("grill")) return "GRILL";
+  if (text.includes("parking")) return "PARK";
 
   return "CHECK";
 }
@@ -106,12 +114,17 @@ function factCard(type, label, x) {
 }
 
 function amenityPill(label, x, y) {
-  const fontSize = String(label || "").length > 21 ? 17 : 19;
+  const displayLabel =
+    String(label || "").toLowerCase().includes("private pool") &&
+    String(label || "").toLowerCase().includes("not heated")
+      ? "Private Pool*"
+      : label;
+  const fontSize = String(displayLabel || "").length > 21 ? 17 : 19;
 
   return `
     <rect x="${x}" y="${y}" width="300" height="68" rx="34" fill="${COLORS.white}"/>
     ${icon(getAmenityIcon(label), x + 42, y + 34, COLORS.tealDark)}
-    <text x="${x + 82}" y="${y + 42}" font-size="${fontSize}" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="800">${escapeXml(label)}</text>
+    <text x="${x + 82}" y="${y + 42}" font-size="${fontSize}" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="800">${escapeXml(displayLabel)}</text>
   `;
 }
 
@@ -129,7 +142,7 @@ function formatSeasonDate(value) {
 }
 
 function buildOverlaySvg(flyer) {
-  const amenities = (flyer.highlights || []).slice(0, 4);
+  const amenities = (flyer.highlights || []).slice(0, 5);
   const season = `${formatSeasonDate(flyer.startDate)} - ${formatSeasonDate(flyer.endDate)}`;
   const poolNote = amenities.some((label) =>
     String(label).toLowerCase().includes("not heated")
@@ -142,16 +155,17 @@ function buildOverlaySvg(flyer) {
       <rect x="0" y="${HERO_HEIGHT}" width="${WIDTH}" height="${HEIGHT - HERO_HEIGHT}" fill="${COLORS.aqua}"/>
       <rect x="0" y="${HERO_HEIGHT}" width="${WIDTH}" height="146" fill="${COLORS.tealDark}"/>
       <text x="56" y="652" font-size="56" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">WINTER SPECIAL</text>
-      <text x="58" y="701" font-size="28" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">BOOK NOW &amp; SAVE IN ${escapeXml(String(flyer.location || "").toUpperCase())}</text>
+      <text x="58" y="701" font-size="28" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">BOOK NOW &amp; SAVE!</text>
 
       <path d="M787 ${HERO_HEIGHT} H1080 V814 H840 L787 761 Z" fill="${COLORS.coral}"/>
-      <text x="937" y="652" text-anchor="middle" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">MONTHLY SPECIAL</text>
-      <text x="937" y="716" text-anchor="middle" font-size="52" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">${escapeXml(flyer.monthlyRate)}</text>
-      <text x="937" y="750" text-anchor="middle" font-size="19" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">PER MONTH</text>
+      <text x="937" y="635" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">WINTER SPECIAL</text>
+      <text x="937" y="695" text-anchor="middle" font-size="52" font-family="Georgia, serif" fill="${COLORS.white}" font-weight="900">${escapeXml(flyer.monthlyRate)}</text>
+      <text x="937" y="729" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">PER MONTH</text>
+      <text x="937" y="771" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.white}" font-weight="900">ONE MONTH MIN</text>
 
       <rect x="56" y="784" width="688" height="94" rx="18" fill="${COLORS.white}"/>
-      <text x="88" y="824" font-size="23" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" font-weight="900">COASTAL WINTER MONTHLY RENTAL</text>
-      <text x="88" y="856" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="700">${escapeXml(season)}  |  One month minimum</text>
+      <text x="88" y="824" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.tealDark}" font-weight="900">COASTAL WINTER RENTAL IN ${escapeXml(String(flyer.location || "").toUpperCase())}</text>
+      <text x="88" y="856" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.text}" font-weight="700">${escapeXml(season)}</text>
 
       ${factCard("BED", `${flyer.bedrooms || "-"} Bedrooms`, 56)}
       ${factCard("BATH", `${flyer.bathrooms || "-"} Bathrooms`, 395)}
@@ -165,8 +179,8 @@ function buildOverlaySvg(flyer) {
         return amenityPill(label, 56 + column * 334, 1081 + row * 87);
       }).join("")}
 
-      <rect x="390" y="1168" width="634" height="68" rx="34" fill="${COLORS.navy}"/>
-      <text x="707" y="1211" text-anchor="middle" font-size="22" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">ALL UTILITIES INCLUDED</text>
+      <rect x="724" y="1168" width="300" height="68" rx="34" fill="${COLORS.navy}"/>
+      <text x="874" y="1211" text-anchor="middle" font-size="18" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.gold}" font-weight="900">ALL UTILITIES INCLUDED</text>
       <text x="56" y="1288" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.muted}">${escapeXml(poolNote)}</text>
       <text x="540" y="1321" text-anchor="middle" font-size="20" font-family="Arial, Helvetica, sans-serif" fill="${COLORS.navy}" font-weight="900">OCEANVACATIONSMB.COM</text>
     </svg>
@@ -187,31 +201,15 @@ async function downloadImageBuffer(url) {
 
 async function makeFullPropertyImage(url) {
   const imageBuffer = await downloadImageBuffer(url);
-  const background = await sharp(imageBuffer)
-    .rotate()
-    .resize(WIDTH, HERO_HEIGHT, {
-      fit: "cover",
-      position: "center"
-    })
-    .blur(18)
-    .jpeg({ quality: 90 })
-    .toBuffer();
   const image = await sharp(imageBuffer)
     .rotate()
     .resize(WIDTH, HERO_HEIGHT, {
-      fit: "contain",
-      background: {
-        r: 0,
-        g: 0,
-        b: 0,
-        alpha: 0
-      }
+      fit: "fill"
     })
-    .png()
+    .jpeg({ quality: 95 })
     .toBuffer();
 
   return {
-    background,
     image
   };
 }
@@ -236,11 +234,6 @@ export async function createWinterFlyer(flyer) {
     }
   })
     .composite([
-      {
-        input: propertyImage.background,
-        top: 0,
-        left: 0
-      },
       {
         input: propertyImage.image,
         top: 0,

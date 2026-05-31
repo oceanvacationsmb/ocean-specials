@@ -84,7 +84,10 @@ function getWinterHighlights(listing, shortId) {
     }
   }
 
-  return highlights;
+  return [
+    ...highlights.filter((label) => label !== "Free Parking").slice(0, 4),
+    "Free Parking"
+  ];
 }
 
 function getListingImageUrl(listing) {

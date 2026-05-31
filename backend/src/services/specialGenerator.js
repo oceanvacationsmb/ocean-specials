@@ -414,9 +414,21 @@ function getOffSeasonAmenitiesLine(listing, shortId) {
     const isMatch = highlight.matches.some((match) => available.has(match));
 
     if (!isMatch) continue;
+    if (selected.some((item) => item.label === highlight.label)) continue;
     if (selected.length >= 7) break;
 
     selected.push(highlight);
+  }
+
+  if (!selected.some((item) => item.label === "Free Parking")) {
+    if (selected.length >= 7) {
+      selected.pop();
+    }
+
+    selected.push({
+      label: "Free Parking",
+      icon: "🅿️"
+    });
   }
 
   return selected
