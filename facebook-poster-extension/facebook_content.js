@@ -1,6 +1,8 @@
 let oceanAlreadyFilled = false;
 let oceanAdvanceSent = false;
 let oceanFillPromise = null;
+let oceanPendingEditable = null;
+let oceanPendingMessage = "";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -185,7 +187,7 @@ function fillEditable(el, message) {
   return hasExpectedText(el, text);
 }
 
-function showOceanStatus(message, isError = false) {
+function showOceanStatus(message, isError = false, action = null) {
   let box = document.getElementById("ocean-specials-fill-status");
 
   if (!box) {
@@ -207,7 +209,52 @@ function showOceanStatus(message, isError = false) {
 
   box.style.background = isError ? "#b42318" : "#067647";
   box.style.color = "white";
-  box.textContent = message;
+  box.replaceChildren();
+
+  const text = document.createElement("div");
+  text.textContent = message;
+  box.appendChild(text);
+
+  if (action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = action.label;
+    button.style.marginTop = "10px";
+    button.style.border = "0";
+    button.style.borderRadius = "6px";
+    button.style.background = "white";
+    button.style.color = isError ? "#b42318" : "#067647";
+    button.style.cursor = "pointer";
+    button.style.fontWeight = "800";
+    button.style.padding = "9px 12px";
+    button.addEventListener("click", action.onClick);
+    box.appendChild(button);
+  }
+}
+
+async function pastePreparedPost() {
+  const editable = oceanPendingEditable || findEditableBox(true) || findEditableBox();
+
+  if (!editable || !oceanPendingMessage) {
+    showOceanStatus("Ocean Specials: post box not found. Click inside the post box and try again.", true, {
+      label: "Try Paste Again",
+      onClick: pastePreparedPost
+    });
+    return;
+  }
+
+  const filled = fillEditable(editable, oceanPendingMessage);
+
+  if (!filled) {
+    showOceanStatus("Ocean Specials: click inside the Facebook post box, then click this button again.", true, {
+      label: "Paste Prepared Post",
+      onClick: pastePreparedPost
+    });
+    return;
+  }
+
+  oceanAlreadyFilled = true;
+  showOceanStatus("Ocean Specials: ready. Review and click Post. The next group opens automatically.");
 }
 
 function isFacebookPostButton(el) {
@@ -316,8 +363,13 @@ async function prepareFacebookPostOnce(message) {
   const filled = fillEditable(editable, message);
 
   if (!filled) {
-    showOceanStatus("Ocean Specials: Facebook blocked the automatic fill. Click the post box and try again.", true);
-    return false;
+    oceanPendingEditable = editable;
+    oceanPendingMessage = message;
+    showOceanStatus("Ocean Specials: Facebook needs one confirmation click to paste the prepared post.", true, {
+      label: "Paste Prepared Post",
+      onClick: pastePreparedPost
+    });
+    return true;
   }
 
   oceanAlreadyFilled = true;
