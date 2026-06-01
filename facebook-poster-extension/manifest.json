@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ocean Specials Facebook Poster",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Guides Ocean Specials posts through saved Facebook groups one window at a time.",
   "permissions": [
     "tabs",

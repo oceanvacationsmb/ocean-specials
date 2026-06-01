@@ -1,5 +1,6 @@
 let oceanAlreadyFilled = false;
 let oceanAdvanceSent = false;
+let oceanFillPromise = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -148,17 +149,6 @@ function fillEditable(el, message) {
     el.textContent = "";
   }
 
-  const clipboardData = new DataTransfer();
-  clipboardData.setData("text/plain", text);
-
-  el.dispatchEvent(
-    new ClipboardEvent("paste", {
-      bubbles: true,
-      cancelable: true,
-      clipboardData
-    })
-  );
-
   el.dispatchEvent(
     new InputEvent("beforeinput", {
       bubbles: true,
@@ -291,6 +281,22 @@ async function prepareFacebookPost(message) {
     return true;
   }
 
+  if (oceanFillPromise) {
+    return oceanFillPromise;
+  }
+
+  oceanFillPromise = prepareFacebookPostOnce(message);
+
+  try {
+    return await oceanFillPromise;
+  } finally {
+    if (!oceanAlreadyFilled) {
+      oceanFillPromise = null;
+    }
+  }
+}
+
+async function prepareFacebookPostOnce(message) {
   showOceanStatus("Ocean Specials: preparing Facebook post...");
 
   window.scrollTo({
@@ -307,12 +313,7 @@ async function prepareFacebookPost(message) {
     return false;
   }
 
-  let filled = fillEditable(editable, message);
-
-  if (!filled) {
-    await sleep(700);
-    filled = fillEditable(editable, message);
-  }
+  const filled = fillEditable(editable, message);
 
   if (!filled) {
     showOceanStatus("Ocean Specials: Facebook blocked the automatic fill. Click the post box and try again.", true);

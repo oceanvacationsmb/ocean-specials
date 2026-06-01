@@ -2,6 +2,7 @@ const pendingPostsByTabId = new Map();
 const postingWindowIds = new Set();
 const preparedTabIds = new Set();
 const failedTabIds = new Set();
+const fillingTabIds = new Set();
 
 let dashboardTabId = null;
 let totalGroups = 0;
@@ -90,9 +91,11 @@ function notifyDashboard() {
 }
 
 async function sendFillMessage(tabId, message, attempt = 1) {
-  if (preparedTabIds.has(tabId)) {
+  if (preparedTabIds.has(tabId) || fillingTabIds.has(tabId)) {
     return;
   }
+
+  fillingTabIds.add(tabId);
 
   try {
     const response = await chrome.tabs.sendMessage(tabId, {
@@ -108,6 +111,8 @@ async function sendFillMessage(tabId, message, attempt = 1) {
     }
   } catch (error) {
     // Facebook may still be loading. Retry below.
+  } finally {
+    fillingTabIds.delete(tabId);
   }
 
   if (attempt < 8) {
@@ -169,6 +174,7 @@ async function openGroupWindows(message, groups, postType) {
   pendingPostsByTabId.clear();
   preparedTabIds.clear();
   failedTabIds.clear();
+  fillingTabIds.clear();
 
   const clean = cleanGroups(groups);
   queuedGroups = clean;
@@ -188,6 +194,7 @@ async function closePostingWindows() {
   pendingPostsByTabId.clear();
   preparedTabIds.clear();
   failedTabIds.clear();
+  fillingTabIds.clear();
   queuedGroups = [];
   queuedMessage = "";
   queuedPostType = "last-minute";
