@@ -68,14 +68,20 @@ function findComposerButton() {
   return null;
 }
 
-function findEditableBox() {
-  const selectors = [
+function findEditableBox(dialogOnly = false) {
+  const selectors = dialogOnly
+    ? [
+      'div[role="dialog"] [data-lexical-editor="true"][contenteditable="true"]',
+      'div[role="dialog"] [role="textbox"][contenteditable="true"]',
+      'div[role="dialog"] div[contenteditable="true"]'
+    ]
+    : [
     'div[role="dialog"] [data-lexical-editor="true"][contenteditable="true"]',
     'div[role="dialog"] div[contenteditable="true"]',
     '[data-lexical-editor="true"][contenteditable="true"]',
     '[role="textbox"][contenteditable="true"]',
     'div[contenteditable="true"]'
-  ];
+    ];
 
   for (const selector of selectors) {
     const boxes = Array.from(document.querySelectorAll(selector)).filter(isVisible);
@@ -112,6 +118,16 @@ function getEditableText(el) {
     .trim();
 }
 
+function hasExpectedText(el, message) {
+  const actual = getEditableText(el).replace(/\s+/g, " ");
+  const expected = String(message || "")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  return expected.length > 0 && actual.includes(expected.slice(0, Math.min(80, expected.length)));
+}
+
 function fillEditable(el, message) {
   const text = String(message || "")
     .replace(/\r\n/g, "\n")
@@ -131,6 +147,17 @@ function fillEditable(el, message) {
   } catch (error) {
     el.textContent = "";
   }
+
+  const clipboardData = new DataTransfer();
+  clipboardData.setData("text/plain", text);
+
+  el.dispatchEvent(
+    new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData
+    })
+  );
 
   el.dispatchEvent(
     new InputEvent("beforeinput", {
@@ -165,7 +192,7 @@ function fillEditable(el, message) {
   el.dispatchEvent(new Event("change", { bubbles: true }));
   el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
 
-  return getEditableText(el).length > 0;
+  return hasExpectedText(el, text);
 }
 
 function showOceanStatus(message, isError = false) {
@@ -228,7 +255,7 @@ document.addEventListener(
 
 async function openComposer() {
   for (let attempt = 1; attempt <= 8; attempt++) {
-    const existingBox = findEditableBox();
+    const existingBox = findEditableBox(true);
 
     if (existingBox) {
       return existingBox;
@@ -241,7 +268,7 @@ async function openComposer() {
       await clickElement(composerButton);
       await sleep(1600);
 
-      const editable = findEditableBox();
+      const editable = findEditableBox(true) || findEditableBox();
 
       if (editable) {
         return editable;

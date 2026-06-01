@@ -132,18 +132,17 @@ async function openNextGroup() {
     return;
   }
 
-  const pos = await getGridPosition(0, 1);
-  const reviewHeight =
-    queuedPostType === "last-minute"
-      ? Math.max(760, pos.height)
-      : Math.min(760, pos.height);
+  const area = await getScreenArea();
+  const margin = 8;
+  const reviewWidth = Math.min(720, Math.max(560, area.width - margin * 2));
+  const reviewHeight = Math.max(720, area.height - margin * 2);
   const createdWindow = await chrome.windows.create({
     url: queuedGroups[currentGroupIndex],
     type: "popup",
     focused: true,
-    left: pos.left,
-    top: pos.top,
-    width: Math.min(760, pos.width),
+    left: area.left + margin,
+    top: area.top + margin,
+    width: reviewWidth,
     height: reviewHeight
   });
 
