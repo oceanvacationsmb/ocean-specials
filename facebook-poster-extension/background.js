@@ -5,6 +5,12 @@ const failedTabIds = new Set();
 
 let dashboardTabId = null;
 let totalGroups = 0;
+let queuedGroups = [];
+let queuedMessage = "";
+let currentGroupIndex = -1;
+let currentWindowId = null;
+let currentTabId = null;
+let queueAdvancePending = false;
 
 function cleanGroups(groups) {
   if (!Array.isArray(groups)) {
@@ -114,42 +120,60 @@ async function sendFillMessage(tabId, message, attempt = 1) {
   notifyDashboard();
 }
 
+async function openNextGroup() {
+  currentGroupIndex += 1;
+  queueAdvancePending = false;
+
+  if (currentGroupIndex >= queuedGroups.length) {
+    currentWindowId = null;
+    currentTabId = null;
+    notifyDashboard();
+    return;
+  }
+
+  const pos = await getGridPosition(0, 1);
+  const createdWindow = await chrome.windows.create({
+    url: queuedGroups[currentGroupIndex],
+    type: "popup",
+    focused: true,
+    left: pos.left,
+    top: pos.top,
+    width: Math.min(760, pos.width),
+    height: Math.min(900, pos.height)
+  });
+
+  if (createdWindow?.id) {
+    currentWindowId = createdWindow.id;
+    postingWindowIds.add(createdWindow.id);
+  }
+
+  const tabId = createdWindow?.tabs?.[0]?.id;
+
+  if (tabId) {
+    currentTabId = tabId;
+    pendingPostsByTabId.set(tabId, queuedMessage);
+
+    setTimeout(() => {
+      sendFillMessage(tabId, queuedMessage);
+    }, 1800);
+  }
+}
+
 async function openGroupWindows(message, groups) {
+  await closePostingWindows();
+
   pendingPostsByTabId.clear();
   preparedTabIds.clear();
   failedTabIds.clear();
 
   const clean = cleanGroups(groups);
+  queuedGroups = clean;
+  queuedMessage = message;
+  currentGroupIndex = -1;
   totalGroups = clean.length;
   notifyDashboard();
 
-  for (let i = 0; i < clean.length; i++) {
-    const pos = await getGridPosition(i, clean.length);
-
-    const createdWindow = await chrome.windows.create({
-      url: clean[i],
-      type: "popup",
-      focused: i === 0,
-      left: pos.left,
-      top: pos.top,
-      width: pos.width,
-      height: pos.height
-    });
-
-    if (createdWindow?.id) {
-      postingWindowIds.add(createdWindow.id);
-    }
-
-    const tabId = createdWindow?.tabs?.[0]?.id;
-
-    if (tabId) {
-      pendingPostsByTabId.set(tabId, message);
-
-      setTimeout(() => {
-        sendFillMessage(tabId, message);
-      }, 1800);
-    }
-  }
+  await openNextGroup();
 }
 
 async function closePostingWindows() {
@@ -159,6 +183,12 @@ async function closePostingWindows() {
   pendingPostsByTabId.clear();
   preparedTabIds.clear();
   failedTabIds.clear();
+  queuedGroups = [];
+  queuedMessage = "";
+  currentGroupIndex = -1;
+  currentWindowId = null;
+  currentTabId = null;
+  queueAdvancePending = false;
   totalGroups = 0;
 
   for (const windowId of ids) {
@@ -199,6 +229,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       ok: true
     });
 
+    return true;
+  }
+
+  if (request?.type === "FB_USER_POSTED") {
+    const tabId = sender?.tab?.id;
+
+    if (!tabId || tabId !== currentTabId || queueAdvancePending) {
+      sendResponse({ ok: false });
+      return true;
+    }
+
+    queueAdvancePending = true;
+
+    setTimeout(async () => {
+      const previousWindowId = currentWindowId;
+
+      if (previousWindowId) {
+        postingWindowIds.delete(previousWindowId);
+
+        try {
+          await chrome.windows.remove(previousWindowId);
+        } catch (error) {
+          // already closed
+        }
+      }
+
+      await openNextGroup();
+    }, 1800);
+
+    sendResponse({ ok: true });
     return true;
   }
 

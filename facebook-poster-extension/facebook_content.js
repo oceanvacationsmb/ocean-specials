@@ -1,4 +1,5 @@
 let oceanAlreadyFilled = false;
+let oceanAdvanceSent = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -172,6 +173,39 @@ function showOceanStatus(message, isError = false) {
   box.textContent = message;
 }
 
+function isFacebookPostButton(el) {
+  const button = el?.closest?.('[role="button"], button');
+
+  if (!button || !isVisible(button)) {
+    return false;
+  }
+
+  const label = cleanText(
+    button.getAttribute("aria-label") ||
+    button.innerText ||
+    button.textContent
+  );
+
+  return label === "post";
+}
+
+document.addEventListener(
+  "click",
+  (event) => {
+    if (!oceanAlreadyFilled || oceanAdvanceSent || !isFacebookPostButton(event.target)) {
+      return;
+    }
+
+    oceanAdvanceSent = true;
+    showOceanStatus("Ocean Specials: posted. Opening the next group...");
+
+    chrome.runtime.sendMessage({
+      type: "FB_USER_POSTED"
+    });
+  },
+  true
+);
+
 async function openComposer() {
   for (let attempt = 1; attempt <= 8; attempt++) {
     const existingBox = findEditableBox();
@@ -231,7 +265,7 @@ async function prepareFacebookPost(message) {
 
   await sleep(500);
 
-  showOceanStatus("Ocean Specials: post prepared. Review and click Post.");
+  showOceanStatus("Ocean Specials: ready. Review and click Post. The next group opens automatically.");
 
   return true;
 }
