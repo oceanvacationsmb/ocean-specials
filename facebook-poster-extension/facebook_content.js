@@ -70,7 +70,9 @@ function findComposerButton() {
 
 function findEditableBox() {
   const selectors = [
+    'div[role="dialog"] [data-lexical-editor="true"][contenteditable="true"]',
     'div[role="dialog"] div[contenteditable="true"]',
+    '[data-lexical-editor="true"][contenteditable="true"]',
     '[role="textbox"][contenteditable="true"]',
     'div[contenteditable="true"]'
   ];
@@ -96,11 +98,18 @@ async function clickElement(el) {
 
   await sleep(500);
 
+  el.click();
   el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
   el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
   el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
 
   return true;
+}
+
+function getEditableText(el) {
+  return String(el?.innerText || el?.textContent || "")
+    .replace(/\u200b/g, "")
+    .trim();
 }
 
 function fillEditable(el, message) {
@@ -123,6 +132,15 @@ function fillEditable(el, message) {
     el.textContent = "";
   }
 
+  el.dispatchEvent(
+    new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      inputType: "insertText",
+      data: text
+    })
+  );
+
   let inserted = false;
 
   try {
@@ -132,7 +150,7 @@ function fillEditable(el, message) {
   }
 
   if (!inserted) {
-    el.innerText = text;
+    el.textContent = text;
   }
 
   el.dispatchEvent(
@@ -146,6 +164,8 @@ function fillEditable(el, message) {
 
   el.dispatchEvent(new Event("change", { bubbles: true }));
   el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+
+  return getEditableText(el).length > 0;
 }
 
 function showOceanStatus(message, isError = false) {
@@ -260,7 +280,18 @@ async function prepareFacebookPost(message) {
     return false;
   }
 
-  fillEditable(editable, message);
+  let filled = fillEditable(editable, message);
+
+  if (!filled) {
+    await sleep(700);
+    filled = fillEditable(editable, message);
+  }
+
+  if (!filled) {
+    showOceanStatus("Ocean Specials: Facebook blocked the automatic fill. Click the post box and try again.", true);
+    return false;
+  }
+
   oceanAlreadyFilled = true;
 
   await sleep(500);
