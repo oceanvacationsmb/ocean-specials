@@ -7,6 +7,7 @@ let dashboardTabId = null;
 let totalGroups = 0;
 let queuedGroups = [];
 let queuedMessage = "";
+let queuedPostType = "last-minute";
 let currentGroupIndex = -1;
 let currentWindowId = null;
 let currentTabId = null;
@@ -132,6 +133,10 @@ async function openNextGroup() {
   }
 
   const pos = await getGridPosition(0, 1);
+  const reviewHeight =
+    queuedPostType === "last-minute"
+      ? Math.max(760, pos.height)
+      : Math.min(760, pos.height);
   const createdWindow = await chrome.windows.create({
     url: queuedGroups[currentGroupIndex],
     type: "popup",
@@ -139,7 +144,7 @@ async function openNextGroup() {
     left: pos.left,
     top: pos.top,
     width: Math.min(760, pos.width),
-    height: Math.min(900, pos.height)
+    height: reviewHeight
   });
 
   if (createdWindow?.id) {
@@ -159,7 +164,7 @@ async function openNextGroup() {
   }
 }
 
-async function openGroupWindows(message, groups) {
+async function openGroupWindows(message, groups, postType) {
   await closePostingWindows();
 
   pendingPostsByTabId.clear();
@@ -169,6 +174,7 @@ async function openGroupWindows(message, groups) {
   const clean = cleanGroups(groups);
   queuedGroups = clean;
   queuedMessage = message;
+  queuedPostType = postType === "off-season" ? "off-season" : "last-minute";
   currentGroupIndex = -1;
   totalGroups = clean.length;
   notifyDashboard();
@@ -185,6 +191,7 @@ async function closePostingWindows() {
   failedTabIds.clear();
   queuedGroups = [];
   queuedMessage = "";
+  queuedPostType = "last-minute";
   currentGroupIndex = -1;
   currentWindowId = null;
   currentTabId = null;
@@ -206,7 +213,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     openGroupWindows(
       request.payload?.message || "",
-      request.payload?.groups || []
+      request.payload?.groups || [],
+      request.payload?.postType || "last-minute"
     );
 
     sendResponse({

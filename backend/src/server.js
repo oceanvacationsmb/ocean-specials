@@ -455,11 +455,13 @@ app.put("/api/properties-bulk", async (req, res) => {
 app.get("/api/facebook-groups", async (req, res) => {
   try {
     const savedGroups = await getAppSetting("facebook_groups", "");
+    const offSeasonGroups = await getAppSetting("facebook_off_season_groups", "");
     const groups = savedGroups.trim() ? savedGroups : DEFAULT_FACEBOOK_GROUPS;
 
     res.json({
       ok: true,
-      groups
+      groups,
+      offSeasonGroups
     });
   } catch (error) {
     res.status(500).json({
@@ -472,12 +474,15 @@ app.get("/api/facebook-groups", async (req, res) => {
 app.put("/api/facebook-groups", async (req, res) => {
   try {
     const groups = req.body?.groups || "";
+    const offSeasonGroups = req.body?.offSeasonGroups || "";
 
     await setAppSetting("facebook_groups", groups);
+    await setAppSetting("facebook_off_season_groups", offSeasonGroups);
 
     res.json({
       ok: true,
-      groups
+      groups,
+      offSeasonGroups
     });
   } catch (error) {
     res.status(500).json({
@@ -627,10 +632,21 @@ app.get("/properties", (req, res) => {
             Add, delete, or edit group links here. One group link per line. Saved on the server.
           </p>
 
+          <label>Last Minute Deal Groups</label>
           <textarea
             id="facebookGroups"
             style="min-height: 190px;"
             placeholder="Paste Facebook group links here, one per line"
+          ></textarea>
+
+          <br />
+          <br />
+
+          <label>Off Season Rental Groups</label>
+          <textarea
+            id="facebookOffSeasonGroups"
+            style="min-height: 190px;"
+            placeholder="Paste long-term rental Facebook group links here, one per line"
           ></textarea>
 
           <br />
@@ -705,6 +721,7 @@ app.get("/properties", (req, res) => {
 
           async function loadFacebookGroups() {
             const box = document.getElementById("facebookGroups");
+            const offSeasonBox = document.getElementById("facebookOffSeasonGroups");
             const status = document.getElementById("facebookGroupsStatus");
 
             status.innerHTML = '<span class="small">Loading...</span>';
@@ -718,11 +735,13 @@ app.get("/properties", (req, res) => {
             }
 
             box.value = data.groups || "";
+            offSeasonBox.value = data.offSeasonGroups || "";
             status.innerHTML = '<span class="success">Loaded</span>';
           }
 
           async function saveFacebookGroups() {
             const box = document.getElementById("facebookGroups");
+            const offSeasonBox = document.getElementById("facebookOffSeasonGroups");
             const status = document.getElementById("facebookGroupsStatus");
 
             status.innerHTML = '<span class="small">Saving...</span>';
@@ -733,7 +752,8 @@ app.get("/properties", (req, res) => {
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                groups: box.value || ""
+                groups: box.value || "",
+                offSeasonGroups: offSeasonBox.value || ""
               })
             });
 
@@ -745,6 +765,7 @@ app.get("/properties", (req, res) => {
             }
 
             box.value = data.groups || "";
+            offSeasonBox.value = data.offSeasonGroups || "";
             status.innerHTML = '<span class="success">Saved</span>';
           }
 
@@ -1033,6 +1054,7 @@ app.get("/specials", (req, res) => {
 
         <script>
           let SERVER_FACEBOOK_GROUPS = "";
+          let SERVER_FACEBOOK_OFF_SEASON_GROUPS = "";
           let ACTIVE_FACEBOOK_POST_STATUS_ID = "";
 
           function escapeHtml(value) {
@@ -1044,8 +1066,13 @@ app.get("/specials", (req, res) => {
               .replaceAll("'", "&#039;");
           }
 
-          function getCleanFacebookGroups() {
-            return String(SERVER_FACEBOOK_GROUPS || "")
+          function getCleanFacebookGroups(postType) {
+            const savedGroups =
+              postType === "off-season"
+                ? SERVER_FACEBOOK_OFF_SEASON_GROUPS
+                : SERVER_FACEBOOK_GROUPS;
+
+            return String(savedGroups || "")
               .split("\\n")
               .map((line) => line.trim())
               .filter(Boolean);
@@ -1111,10 +1138,12 @@ app.get("/specials", (req, res) => {
 
             if (!data.ok) {
               SERVER_FACEBOOK_GROUPS = "";
+              SERVER_FACEBOOK_OFF_SEASON_GROUPS = "";
               return;
             }
 
             SERVER_FACEBOOK_GROUPS = data.groups || "";
+            SERVER_FACEBOOK_OFF_SEASON_GROUPS = data.offSeasonGroups || "";
           }
 
           async function copyText(id) {
@@ -1126,10 +1155,10 @@ app.get("/specials", (req, res) => {
             status.innerHTML = '<span class="success">Copied</span>';
           }
 
-          async function startFacebookPosting(id) {
+          async function startFacebookPosting(id, postType) {
             const el = document.getElementById(id);
             const message = el.value || "";
-            const groups = getCleanFacebookGroups();
+            const groups = getCleanFacebookGroups(postType);
 
             if (!message.trim()) {
               alert("Message is empty.");
@@ -1149,7 +1178,8 @@ app.get("/specials", (req, res) => {
                 type: "START_FB_POSTING",
                 payload: {
                   groups,
-                  message
+                  message,
+                  postType
                 }
               },
               "*"
@@ -1236,7 +1266,7 @@ app.get("/specials", (req, res) => {
               + '  <br /><br />'
               + '  <div class="row">'
               + '    <button onclick="regenerateLastMinuteFlyer(\\'' + escapeHtml(listingId) + '\\', \\'' + textareaId + '\\', \\'' + previewId + '\\', \\'' + flyerStatusId + '\\', \\'' + escapeHtml(flyerUrl) + '\\')">Regenerate Flyer</button>'
-              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Prepare Facebook Posts</button>'
+              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\', \\'last-minute\\')">Prepare Facebook Posts</button>'
               + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
               + '    <span id="copy-' + textareaId + '"></span>'
               + '    <span id="posting-' + textareaId + '"></span>'
@@ -1269,7 +1299,7 @@ app.get("/specials", (req, res) => {
               + '  <br /><br />'
               + '  <div class="row">'
               + '    <button onclick="regenerateWinterFlyer(\\'' + escapeHtml(listingId) + '\\', \\'' + textareaId + '\\', \\'' + previewId + '\\', \\'' + flyerStatusId + '\\', \\'' + escapeHtml(flyerUrl) + '\\')">Regenerate Flyer</button>'
-              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\')">Prepare Facebook Posts</button>'
+              + '    <button onclick="startFacebookPosting(\\'' + textareaId + '\\', \\'off-season\\')">Prepare Facebook Posts</button>'
               + '    <button onclick="copyText(\\'' + textareaId + '\\')">Copy Message</button>'
               + '    <span id="copy-' + textareaId + '"></span>'
               + '    <span id="posting-' + textareaId + '"></span>'
